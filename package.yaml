@@ -1,0 +1,40 @@
+name:                navm-hs
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/ollef/navm-hs#readme
+license:             BSD3
+author:              Olle Fredriksson
+maintainer:          fredriksson.olle@gmail.com
+copyright:           2021 Olle Fredriksson
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-home-modules
+  - -Wpartial-fields
+  - -Wredundant-constraints
+  - -Wtabs
+  - -Wunused-packages
+  - -funbox-strict-fields
+
+library:
+  source-dirs: src
+  dependencies:
+    - hashable
+    - unordered-containers
+
+executables:
+  navm-hs:
+    source-dirs: app
+    main: Main.hs
+    dependencies:
+      - navm-hs
