@@ -2,30 +2,40 @@ module Target.X86.Random where
 
 import Control.Applicative
 import Data.Int
+import Hedgehog (Gen)
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
 import Target.X86.Assembly
 
-generateInstructions :: [Instruction]
-generateInstructions =
-  Add <$> generateOperand <*> generateOperand
+generateInstruction :: Gen Instruction
+generateInstruction =
+  Add <$> generateDestinationOperand <*> generateOperand
     <|> Call <$> generateOperand
     <|> pure Ret
-    <|> Mov <$> generateOperand <*> generateOperand
+    <|> Mov <$> generateDestinationOperand <*> generateOperand
 
-generateOperand :: [Operand]
+generateOperand :: Gen Operand
 generateOperand =
   Immediate <$> generateImmediate
-    <|> Register <$> generateRegister
+    <|> generateDestinationOperand
+
+generateDestinationOperand :: Gen Operand
+generateDestinationOperand =
+  Register <$> generateRegister
     <|> Address <$> generateAddress
 
-generateImmediate :: [Int64]
-generateImmediate = [0, -1, 1, 256, 20000]
+generateImmediate :: Gen Int64
+generateImmediate = Gen.int64 Range.linearBounded
 
-generateRegister :: [Register]
-generateRegister = [minBound .. maxBound]
+generateRegister :: Gen Register
+generateRegister = Gen.enumBounded
 
-generateAddress :: [Address]
+generateAddress :: Gen Address
 generateAddress =
-  Address' <$> optional generateRegister <*> optional generateScaledRegister <*> generateDisplacement
+  Address'
+    <$> optional generateRegister
+    <*> optional generateScaledRegister
+    <*> generateDisplacement
   where
-    generateScaledRegister = (,) <$> generateRegister <*> [minBound .. maxBound]
-    generateDisplacement = [0, -1, 1, 256, 20000]
+    generateScaledRegister = (,) <$> generateRegister <*> Gen.enumBounded
+    generateDisplacement = Gen.int32 Range.linearBounded
