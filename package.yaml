@@ -41,3 +41,14 @@ executables:
     main: Main.hs
     dependencies:
       - navm-hs
+
+tests:
+  test-navm:
+    main: Main.hs
+    source-dirs: tests
+    dependencies:
+      - bytestring
+      - hedgehog
+      - navm-hs
+      - process
+      - temporary
