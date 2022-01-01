@@ -29,6 +29,8 @@ ghc-options:
 library:
   source-dirs: src
   dependencies:
+    - bytestring
+    - containers
     - hashable
     - unordered-containers
 
