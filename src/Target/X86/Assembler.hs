@@ -66,9 +66,3 @@ fromEnum8 x =
 
 instance FromInstruction MachineCodeBuilder where
   fromInstruction = assembleInstruction
-
-test :: MachineCode
-test = getConst $ do
-  add rax rax
-  add rbx rax
-  return ()
