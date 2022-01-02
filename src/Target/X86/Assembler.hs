@@ -37,15 +37,15 @@ assembleInstruction :: Instruction -> MachineCodeBuilder
 assembleInstruction instruction =
   case instruction of
     Add (Register dstReg) (Register srcReg) ->
-      prefixedAndModified (word8 0x01) dstReg (Just srcReg)
+      rexMod (word8 0x01) dstReg (Just srcReg)
     Add (Register r) (Immediate (toImm8 -> Just imm8)) ->
-      prefixedAndModified (word8 0x83) r Nothing <> word8 imm8
+      rexMod (word8 0x83) r Nothing <> word8 imm8
     Add (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
       word8 0x48 -- REX prefix
         <> word8 0x05 -- ADD
         <> int32 imm32
     Add (Register r) (Immediate (toImm32 -> Just imm32)) ->
-      prefixedAndModified (word8 0x81) r Nothing <> int32 imm32
+      rexMod (word8 0x81) r Nothing <> int32 imm32
     Add (Register _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Immediate _) _ -> error "immediate destination operand"
     Add _ _ -> mempty
@@ -65,14 +65,14 @@ assembleInstruction instruction =
     Call _ -> mempty
     Ret -> word8 0xc3 -- RET
     Mov (Register r) (Immediate (toImm32 -> Just imm32)) ->
-      prefixedAndModified (word8 0xc7) r Nothing <> int32 imm32
+      rexMod (word8 0xc7) r Nothing <> int32 imm32
     Mov (Register r) (Immediate imm64) -> do
       let regWord = fromEnum8 r
           rexReg = regWord `shiftR` 3
           regOp = regWord .&. 0b111
       word8 (0x48 .|. rexReg) <> word8 (0xb8 .|. regOp) <> int64 imm64
     Mov (Register dstReg) (Register srcReg) ->
-      prefixedAndModified (word8 0x89) dstReg (Just srcReg)
+      rexMod (word8 0x89) dstReg (Just srcReg)
     Mov (Address _) (Address _) -> error "too many memory operands for mov"
     Mov _ _ -> mempty
   where
@@ -82,12 +82,12 @@ assembleInstruction instruction =
     toImm32 :: (Integral a, Bits a) => a -> Maybe Int32
     toImm32 a = toIntegralSized a :: Maybe Int32
 
-    prefixedAndModified ::
+    rexMod ::
       MachineCodeBuilder ->
       Register ->
       Maybe Register ->
       MachineCodeBuilder
-    prefixedAndModified opcode dstReg (fromMaybe RAX -> srcReg) = do
+    rexMod opcode dstReg (fromMaybe RAX -> srcReg) = do
       let dstRegWord = fromEnum8 dstReg
           dstRexReg = dstRegWord `shiftR` 3
           dstRegMod = dstRegWord .&. 0b111
