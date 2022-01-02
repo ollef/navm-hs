@@ -63,6 +63,10 @@ assembleInstruction instruction =
         (Register _, Immediate _) -> error "immediate operand has to fit in 32 bits"
         (Immediate _, _) -> error "immediate destination operand"
         _ -> mempty
+    Call (Immediate (toImm32 -> Just imm32)) ->
+      word8 0xe8
+        <> int32 imm32
+    Call (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Call _ -> mempty
     Ret -> word8 0xc3 -- RET
     Mov _ _ -> mempty
