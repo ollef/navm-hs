@@ -10,7 +10,7 @@ import Target.X86.Assembly
 
 printInstructions :: [Instruction] -> Builder
 printInstructions =
-  mconcat . intersperse "\n" . map printInstruction
+  mconcat . map (\i -> printInstruction i <> "\n")
 
 printInstruction :: Instruction -> Builder
 printInstruction instruction =
