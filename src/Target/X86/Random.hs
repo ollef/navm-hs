@@ -13,7 +13,10 @@ generateInstruction =
     [ Add <$> generateDestinationOperand <*> generateOperand
     , Call <$> generateOperand
     , pure Ret
-    , Mov <$> generateDestinationOperand <*> generateMovOperand
+    , do
+        dst <- generateDestinationOperand
+        src <- generateMovOperand dst
+        pure $ Mov dst src
     ]
 
 generateOperand :: Gen Operand
@@ -23,11 +26,14 @@ generateOperand =
     , generateDestinationOperand
     ]
 
-generateMovOperand :: Gen Operand
-generateMovOperand =
+generateMovOperand :: Operand -> Gen Operand
+generateMovOperand dst =
   Gen.choice
     [ Immediate <$> generateMovImmediate
-    , generateDestinationOperand
+    , Register <$> generateRegister
+    , case dst of
+        Address _ -> empty
+        _ -> Address <$> generateAddress
     ]
 
 generateDestinationOperand :: Gen Operand
