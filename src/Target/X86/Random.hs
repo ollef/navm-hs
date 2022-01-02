@@ -19,13 +19,21 @@ generateOperand =
   Immediate <$> generateImmediate
     <|> generateDestinationOperand
 
+generateMovOperand :: Gen Operand
+generateMovOperand =
+  Immediate <$> generateMovImmediate
+    <|> generateDestinationOperand
+
 generateDestinationOperand :: Gen Operand
 generateDestinationOperand =
   Register <$> generateRegister
     <|> Address <$> generateAddress
 
 generateImmediate :: Gen Int64
-generateImmediate = Gen.int64 Range.linearBounded
+generateImmediate = fromIntegral <$> Gen.int32 Range.linearBounded
+
+generateMovImmediate :: Gen Int64
+generateMovImmediate = Gen.int64 Range.linearBounded
 
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
