@@ -75,6 +75,14 @@ assembleInstruction instruction =
     Call (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Call _ -> mempty
     Ret -> word8 0xc3 -- RET
+    Mov (Register r) (Immediate (toImm32 -> Just imm32)) -> do
+      let regWord = fromEnum8 r
+          rexReg = regWord `shiftR` 3
+          regOp = regWord .&. 7
+      word8 (0x48 .|. rexReg) -- REX prefix
+        <> word8 0xc7 -- MOV
+        <> word8 (0xc0 .|. regOp)
+        <> int32 imm32
     Mov _ _ -> mempty
   where
     toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
