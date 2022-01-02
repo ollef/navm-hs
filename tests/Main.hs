@@ -21,22 +21,25 @@ main =
     [ Hedgehog.checkParallel $
         Hedgehog.Group
           "X86"
-          [("Assembler matches NASM", prop_x86Assembler)]
+          [("Assembler matches GNU as", prop_x86Assembler)]
     ]
 
 prop_x86Assembler :: Hedgehog.Property
 prop_x86Assembler = Hedgehog.property $ do
   instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) generateInstruction
-  nasmAssembledInstructions <-
+  gnuAssembledInstructions <-
     Hedgehog.evalIO $
       withTempFile "." "tmp.s" $ \assemblyFileName assemblyFileHandle ->
         withTempFile "." "tmp.o" $ \objectFileName objectFileHandle -> do
-          hClose assemblyFileHandle
-          hClose objectFileHandle
-          ByteString.Lazy.writeFile assemblyFileName $
-            Builder.toLazyByteString $
-              "BITS 64\n" <> printInstructions instructions
-          callProcess "nasm" [assemblyFileName, "-o", objectFileName]
-          ByteString.Lazy.readFile objectFileName
+          withTempFile "." "tmp.bin" $ \binaryFileName binaryFileHandle -> do
+            hClose assemblyFileHandle
+            hClose objectFileHandle
+            hClose binaryFileHandle
+            ByteString.Lazy.writeFile assemblyFileName $
+              Builder.toLazyByteString $
+                ".intel_syntax noprefix\n" <> printInstructions instructions
+            callProcess "as" [assemblyFileName, "-o", objectFileName]
+            callProcess "objcopy" ["-O", "binary", "-j", ".text", objectFileName, binaryFileName]
+            ByteString.Lazy.readFile binaryFileName
   let assembledInstructions = buildMachineCode $ assembleInstructions instructions
-  assembledInstructions Hedgehog.=== MachineCode nasmAssembledInstructions
+  assembledInstructions Hedgehog.=== MachineCode gnuAssembledInstructions
