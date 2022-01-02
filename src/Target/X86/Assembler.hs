@@ -36,10 +36,16 @@ assembleInstruction instruction =
   case instruction of
     Add dst src ->
       case (dst, src) of
-        (Register dstReg, Register srcReg) ->
-          word8 0x48 -- REX prefix
+        (Register dstReg, Register srcReg) -> do
+          let dstRegWord = fromEnum8 dstReg
+              dstRexReg = dstRegWord `shiftR` 3
+              dstRegOp = dstRegWord .&. 7
+          let srcRegWord = fromEnum8 srcReg
+              srcRexReg = srcRegWord `shiftR` 3
+              srcRegOp = srcRegWord .&. 7
+          word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 4)) -- REX prefix
             <> word8 0x01 -- ADD
-            <> word8 (0xc0 .|. fromEnum8 srcReg .|. (fromEnum8 dstReg `shiftL` 3))
+            <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3))
         (Register r, Immediate (toImm8 -> Just imm8)) -> do
           let regWord = fromEnum8 r
               rexReg = regWord `shiftR` 3
