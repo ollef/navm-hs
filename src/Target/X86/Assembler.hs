@@ -10,6 +10,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Int
+import Data.Maybe
 import Data.Word
 import Target.X86.Assembly
 import Text.Printf (printf)
@@ -36,36 +37,16 @@ assembleInstruction instruction =
   case instruction of
     Add dst src ->
       case (dst, src) of
-        (Register dstReg, Register srcReg) -> do
-          let dstRegWord = fromEnum8 dstReg
-              dstRexReg = dstRegWord `shiftR` 3
-              dstRegOp = dstRegWord .&. 7
-          let srcRegWord = fromEnum8 srcReg
-              srcRexReg = srcRegWord `shiftR` 3
-              srcRegOp = srcRegWord .&. 7
-          word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
-            <> word8 0x01 -- ADD
-            <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3))
-        (Register r, Immediate (toImm8 -> Just imm8)) -> do
-          let regWord = fromEnum8 r
-              rexReg = regWord `shiftR` 3
-              regOp = regWord .&. 7
-          word8 (0x48 .|. rexReg) -- REX prefix
-            <> word8 0x83 -- ADD
-            <> word8 (0xc0 .|. regOp)
-            <> word8 imm8
+        (Register dstReg, Register srcReg) ->
+          prefixedAndModified (word8 0x01) dstReg (Just srcReg)
+        (Register r, Immediate (toImm8 -> Just imm8)) ->
+          prefixedAndModified (word8 0x83) r Nothing <> word8 imm8
         (Register RAX, Immediate (toImm32 -> Just imm32)) ->
           word8 0x48 -- REX prefix
             <> word8 0x05 -- ADD
             <> int32 imm32
-        (Register r, Immediate (toImm32 -> Just imm32)) -> do
-          let regWord = fromEnum8 r
-              rexReg = regWord `shiftR` 3
-              regOp = regWord .&. 7
-          word8 (0x48 .|. rexReg) -- REX prefix
-            <> word8 0x81 -- ADD
-            <> word8 (0xc0 .|. regOp)
-            <> int32 imm32
+        (Register r, Immediate (toImm32 -> Just imm32)) ->
+          prefixedAndModified (word8 0x81) r Nothing <> int32 imm32
         (Register _, Immediate _) -> error "immediate operand has to fit in 32 bits"
         (Immediate _, _) -> error "immediate destination operand"
         _ -> mempty
@@ -84,24 +65,10 @@ assembleInstruction instruction =
     Call (Immediate _) -> word8 0xe8 <> int32 0
     Call _ -> mempty
     Ret -> word8 0xc3 -- RET
-    Mov (Register r) (Immediate (toImm32 -> Just imm32)) -> do
-      let regWord = fromEnum8 r
-          rexReg = regWord `shiftR` 3
-          regOp = regWord .&. 7
-      word8 (0x48 .|. rexReg) -- REX prefix
-        <> word8 0xc7 -- MOV
-        <> word8 (0xc0 .|. regOp)
-        <> int32 imm32
-    Mov (Register dstReg) (Register srcReg) -> do
-      let dstRegWord = fromEnum8 dstReg
-          dstRexReg = dstRegWord `shiftR` 3
-          dstRegOp = dstRegWord .&. 7
-      let srcRegWord = fromEnum8 srcReg
-          srcRexReg = srcRegWord `shiftR` 3
-          srcRegOp = srcRegWord .&. 7
-      word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
-        <> word8 0x89 -- MOV
-        <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3))
+    Mov (Register r) (Immediate (toImm32 -> Just imm32)) ->
+      prefixedAndModified (word8 0xc7) r Nothing <> int32 imm32
+    Mov (Register dstReg) (Register srcReg) ->
+      prefixedAndModified (word8 0x89) dstReg (Just srcReg)
     Mov _ _ -> mempty
   where
     toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
@@ -109,6 +76,19 @@ assembleInstruction instruction =
 
     toImm32 :: (Integral a, Bits a) => a -> Maybe Int32
     toImm32 a = toIntegralSized a :: Maybe Int32
+
+    prefixedAndModified ::
+      MachineCodeBuilder -> Register -> Maybe Register -> MachineCodeBuilder
+    prefixedAndModified opcode dstReg (fromMaybe RAX -> srcReg) = do
+      let dstRegWord = fromEnum8 dstReg
+          dstRexReg = dstRegWord `shiftR` 3
+          dstRegOp = dstRegWord .&. 7
+      let srcRegWord = fromEnum8 srcReg
+          srcRexReg = srcRegWord `shiftR` 3
+          srcRegOp = srcRegWord .&. 7
+      word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
+        <> opcode
+        <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3)) -- Mod R/M
 
 word8 :: Word8 -> MachineCodeBuilder
 word8 = MachineCodeBuilder . Builder.word8
