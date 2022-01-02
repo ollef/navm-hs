@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Target.X86.Assembler where
 
@@ -35,12 +36,27 @@ assembleInstruction instruction =
   case instruction of
     Add dst src -> do
       let addRI :: Register -> Int64 -> MachineCodeBuilder
-          addRI RAX i =
+          addRI r (toImm8 -> Just imm8) = do
+            let regWord = fromEnum8 r
+                rexReg = regWord `shiftR` 3
+                regOp = regWord .&. 7
+            word8 (0x48 .|. rexReg) -- REX prefix
+              <> word8 0x83 -- ADD
+              <> word8 (0xc0 .|. regOp)
+              <> word8 imm8
+          addRI RAX (toImm32 -> Just imm32) =
             word8 0x48 -- REX prefix
               <> word8 0x05 -- ADD
-              <> int64 i
-          addRI r i = do
-            undefined
+              <> int32 imm32
+          addRI r (toImm32 -> Just imm32) = do
+            let regWord = fromEnum8 r
+                rexReg = regWord `shiftR` 3
+                regOp = regWord .&. 7
+            word8 (0x48 .|. rexReg) -- REX prefix
+              <> word8 0x81 -- ADD
+              <> word8 (0xc0 .|. regOp)
+              <> int32 imm32
+          addRI _ _ = error "add operand has to fit in 32 bits"
 
       case (dst, src) of
         (Register dstReg, Register srcReg) ->
@@ -48,14 +64,23 @@ assembleInstruction instruction =
             <> word8 0x01 -- ADD
             <> word8 (0xc0 .|. fromEnum8 srcReg .|. (fromEnum8 dstReg `shiftL` 3))
         (Register r, Immediate i) -> addRI r i
-        (Immediate _, _) -> mempty
-        _ -> undefined
-    Call _ -> undefined
+        (Immediate _, _) -> error "immediate destination operand"
+        _ -> mempty
+    Call _ -> mempty
     Ret -> word8 0xc3 -- RET
-    Mov _ _ -> undefined
+    Mov _ _ -> mempty
+  where
+    toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
+    toImm8 a = fromIntegral <$> (toIntegralSized a :: Maybe Int8)
+
+    toImm32 :: (Integral a, Bits a) => a -> Maybe Int32
+    toImm32 a = toIntegralSized a :: Maybe Int32
 
 word8 :: Word8 -> MachineCodeBuilder
 word8 = MachineCodeBuilder . Builder.word8
+
+int32 :: Int32 -> MachineCodeBuilder
+int32 = MachineCodeBuilder . Builder.int32LE
 
 int64 :: Int64 -> MachineCodeBuilder
 int64 = MachineCodeBuilder . Builder.int64LE
