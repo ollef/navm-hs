@@ -43,7 +43,7 @@ assembleInstruction instruction =
           let srcRegWord = fromEnum8 srcReg
               srcRexReg = srcRegWord `shiftR` 3
               srcRegOp = srcRegWord .&. 7
-          word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 4)) -- REX prefix
+          word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
             <> word8 0x01 -- ADD
             <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3))
         (Register r, Immediate (toImm8 -> Just imm8)) -> do
