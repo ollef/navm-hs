@@ -9,25 +9,33 @@ import Target.X86.Assembly
 
 generateInstruction :: Gen Instruction
 generateInstruction =
-  Add <$> generateDestinationOperand <*> generateOperand
-    <|> Call <$> generateOperand
-    <|> pure Ret
-    <|> Mov <$> generateDestinationOperand <*> generateOperand
+  Gen.choice
+    [ Add <$> generateDestinationOperand <*> generateOperand
+    , Call <$> generateOperand
+    , pure Ret
+    , Mov <$> generateDestinationOperand <*> generateOperand
+    ]
 
 generateOperand :: Gen Operand
 generateOperand =
-  Immediate <$> generateImmediate
-    <|> generateDestinationOperand
+  Gen.choice
+    [ Immediate <$> generateImmediate
+    , generateDestinationOperand
+    ]
 
 generateMovOperand :: Gen Operand
 generateMovOperand =
-  Immediate <$> generateMovImmediate
-    <|> generateDestinationOperand
+  Gen.choice
+    [ Immediate <$> generateMovImmediate
+    , generateDestinationOperand
+    ]
 
 generateDestinationOperand :: Gen Operand
 generateDestinationOperand =
-  Register <$> generateRegister
-    <|> Address <$> generateAddress
+  Gen.choice
+    [ Register <$> generateRegister
+    , Address <$> generateAddress
+    ]
 
 generateImmediate :: Gen Int64
 generateImmediate = fromIntegral <$> Gen.int32 Range.linearBounded
