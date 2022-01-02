@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE BinaryLiterals #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -51,7 +52,7 @@ assembleInstruction instruction =
     Call (Register r) -> do
       let regWord = fromEnum8 r
           rexReg = regWord `shiftR` 3
-          regOp = regWord .&. 7
+          regOp = regWord .&. 0b111
       if rexReg == 0
         then
           word8 0xff
@@ -68,7 +69,7 @@ assembleInstruction instruction =
     Mov (Register r) (Immediate imm64) -> do
       let regWord = fromEnum8 r
           rexReg = regWord `shiftR` 3
-          regOp = regWord .&. 7
+          regOp = regWord .&. 0b111
       word8 (0x48 .|. rexReg) <> word8 (0xb8 .|. regOp) <> int64 imm64
     Mov (Register dstReg) (Register srcReg) ->
       prefixedAndModified (word8 0x89) dstReg (Just srcReg)
@@ -89,10 +90,10 @@ assembleInstruction instruction =
     prefixedAndModified opcode dstReg (fromMaybe RAX -> srcReg) = do
       let dstRegWord = fromEnum8 dstReg
           dstRexReg = dstRegWord `shiftR` 3
-          dstRegMod = dstRegWord .&. 7
+          dstRegMod = dstRegWord .&. 0b111
       let srcRegWord = fromEnum8 srcReg
           srcRexReg = srcRegWord `shiftR` 3
-          srcRegMod = srcRegWord .&. 7
+          srcRegMod = srcRegWord .&. 0b111
       word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
         <> opcode
         <> word8 (0xc0 .|. dstRegMod .|. (srcRegMod `shiftL` 3)) -- Mod R/M
