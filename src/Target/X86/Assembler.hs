@@ -83,17 +83,20 @@ assembleInstruction instruction =
     toImm32 a = toIntegralSized a :: Maybe Int32
 
     prefixedAndModified ::
-      MachineCodeBuilder -> Register -> Maybe Register -> MachineCodeBuilder
+      MachineCodeBuilder ->
+      Register ->
+      Maybe Register ->
+      MachineCodeBuilder
     prefixedAndModified opcode dstReg (fromMaybe RAX -> srcReg) = do
       let dstRegWord = fromEnum8 dstReg
           dstRexReg = dstRegWord `shiftR` 3
-          dstRegOp = dstRegWord .&. 7
+          dstRegMod = dstRegWord .&. 7
       let srcRegWord = fromEnum8 srcReg
           srcRexReg = srcRegWord `shiftR` 3
-          srcRegOp = srcRegWord .&. 7
+          srcRegMod = srcRegWord .&. 7
       word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
         <> opcode
-        <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3)) -- Mod R/M
+        <> word8 (0xc0 .|. dstRegMod .|. (srcRegMod `shiftL` 3)) -- Mod R/M
 
 word8 :: Word8 -> MachineCodeBuilder
 word8 = MachineCodeBuilder . Builder.word8
