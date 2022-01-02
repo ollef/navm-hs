@@ -35,21 +35,19 @@ assembleInstructions =
 assembleInstruction :: Instruction -> MachineCodeBuilder
 assembleInstruction instruction =
   case instruction of
-    Add dst src ->
-      case (dst, src) of
-        (Register dstReg, Register srcReg) ->
-          prefixedAndModified (word8 0x01) dstReg (Just srcReg)
-        (Register r, Immediate (toImm8 -> Just imm8)) ->
-          prefixedAndModified (word8 0x83) r Nothing <> word8 imm8
-        (Register RAX, Immediate (toImm32 -> Just imm32)) ->
-          word8 0x48 -- REX prefix
-            <> word8 0x05 -- ADD
-            <> int32 imm32
-        (Register r, Immediate (toImm32 -> Just imm32)) ->
-          prefixedAndModified (word8 0x81) r Nothing <> int32 imm32
-        (Register _, Immediate _) -> error "immediate operand has to fit in 32 bits"
-        (Immediate _, _) -> error "immediate destination operand"
-        _ -> mempty
+    Add (Register dstReg) (Register srcReg) ->
+      prefixedAndModified (word8 0x01) dstReg (Just srcReg)
+    Add (Register r) (Immediate (toImm8 -> Just imm8)) ->
+      prefixedAndModified (word8 0x83) r Nothing <> word8 imm8
+    Add (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
+      word8 0x48 -- REX prefix
+        <> word8 0x05 -- ADD
+        <> int32 imm32
+    Add (Register r) (Immediate (toImm32 -> Just imm32)) ->
+      prefixedAndModified (word8 0x81) r Nothing <> int32 imm32
+    Add (Register _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
+    Add (Immediate _) _ -> error "immediate destination operand"
+    Add _ _ -> mempty
     Call (Register r) -> do
       let regWord = fromEnum8 r
           rexReg = regWord `shiftR` 3
