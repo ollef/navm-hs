@@ -72,6 +72,7 @@ assembleInstruction instruction =
       word8 (0x48 .|. rexReg) <> word8 (0xb8 .|. regOp) <> int64 imm64
     Mov (Register dstReg) (Register srcReg) ->
       prefixedAndModified (word8 0x89) dstReg (Just srcReg)
+    Mov (Address _) (Address _) -> error "too many memory operands for mov"
     Mov _ _ -> mempty
   where
     toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
