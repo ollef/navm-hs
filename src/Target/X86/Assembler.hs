@@ -67,6 +67,11 @@ assembleInstruction instruction =
     Ret -> word8 0xc3 -- RET
     Mov (Register r) (Immediate (toImm32 -> Just imm32)) ->
       prefixedAndModified (word8 0xc7) r Nothing <> int32 imm32
+    Mov (Register r) (Immediate imm64) -> do
+      let regWord = fromEnum8 r
+          rexReg = regWord `shiftR` 3
+          regOp = regWord .&. 7
+      word8 (0x48 .|. rexReg) <> word8 (0xb8 .|. regOp) <> int64 imm64
     Mov (Register dstReg) (Register srcReg) ->
       prefixedAndModified (word8 0x89) dstReg (Just srcReg)
     Mov _ _ -> mempty

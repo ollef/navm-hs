@@ -13,7 +13,7 @@ generateInstruction =
     [ Add <$> generateDestinationOperand <*> generateOperand
     , Call <$> generateOperand
     , pure Ret
-    , Mov <$> generateDestinationOperand <*> generateOperand
+    , Mov <$> generateDestinationOperand <*> generateMovOperand
     ]
 
 generateOperand :: Gen Operand
