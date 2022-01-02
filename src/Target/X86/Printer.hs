@@ -50,8 +50,8 @@ printRegister register =
 printAddress :: Address -> Builder
 printAddress (Address' maybeBase maybeIndex disp) =
   case addends of
-    [] -> "[0]"
-    _ -> "[" <> mconcat (intersperse "+" addends) <> "]"
+    [] -> "qword ptr [0]"
+    _ -> "qword ptr [" <> mconcat (intersperse "+" addends) <> "]"
   where
     addends =
       catMaybes
