@@ -83,6 +83,16 @@ assembleInstruction instruction =
         <> word8 0xc7 -- MOV
         <> word8 (0xc0 .|. regOp)
         <> int32 imm32
+    Mov (Register dstReg) (Register srcReg) -> do
+      let dstRegWord = fromEnum8 dstReg
+          dstRexReg = dstRegWord `shiftR` 3
+          dstRegOp = dstRegWord .&. 7
+      let srcRegWord = fromEnum8 srcReg
+          srcRexReg = srcRegWord `shiftR` 3
+          srcRegOp = srcRegWord .&. 7
+      word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
+        <> word8 0x89 -- MOV
+        <> word8 (0xc0 .|. dstRegOp .|. (srcRegOp `shiftL` 3))
     Mov _ _ -> mempty
   where
     toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
