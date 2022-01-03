@@ -6,6 +6,7 @@
 
 module Target.X86.Assembler where
 
+import Data.Bifunctor
 import Data.Bits
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
@@ -48,6 +49,17 @@ assembleInstruction instruction =
       rexMod (word8 0x81) r Nothing <> int32 imm32
     Add (Register _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Immediate _) _ -> error "immediate destination operand"
+    Add (Address addr) (Register r) ->
+      word8 0x48
+        <> word8 0x83
+        <> word8 0x04
+        <> word8 0
+        <> word8 0
+    Add (Register r) (Address addr) ->
+      word8 0x48
+        <> word8 0x03
+        <> word8 0x04
+        <> word8 (sib addr)
     Add _ _ -> mempty
     Call (Register r) -> do
       let regWord = fromEnum8 r
@@ -97,6 +109,11 @@ assembleInstruction instruction =
       word8 (0x48 .|. dstRexReg .|. (srcRexReg `shiftL` 2)) -- REX prefix
         <> opcode
         <> word8 (0xc0 .|. dstRegMod .|. (srcRegMod `shiftL` 3)) -- Mod R/M
+    sib :: Address -> Word8
+    sib (Address' base index displacement) = do
+      let (index', scale') = maybe (0, 0) (bimap ((.&. 0b111) . fromEnum8) fromEnum8) index
+          base' = maybe 0 ((.&. 0b111) . fromEnum8) base
+      (scale' `shiftL` 6) .|. (index' `shiftL` 3) .|. base'
 
 word8 :: Word8 -> MachineCodeBuilder
 word8 = MachineCodeBuilder . Builder.word8
