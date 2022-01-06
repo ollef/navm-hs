@@ -10,8 +10,11 @@ import Target.X86.Assembly
 generateInstruction :: Gen Instruction
 generateInstruction =
   Gen.choice
-    [ Add <$> generateDestinationOperand <*> generateOperand
-    , Call <$> generateOperand
+    [ do
+        dst <- generateDestinationOperand
+        src <- generateOperand $ Just dst
+        pure $ Add dst src
+    , Call <$> generateOperand Nothing
     , pure Ret
     , do
         dst <- generateDestinationOperand
@@ -19,11 +22,14 @@ generateInstruction =
         pure $ Mov dst src
     ]
 
-generateOperand :: Gen Operand
-generateOperand =
+generateOperand :: Maybe Operand -> Gen Operand
+generateOperand dst =
   Gen.choice
     [ Immediate <$> generateImmediate
-    , generateDestinationOperand
+    , Register <$> generateRegister
+    , case dst of
+        Just (Address _) -> empty
+        _ -> Address <$> generateAddress
     ]
 
 generateMovOperand :: Operand -> Gen Operand
