@@ -2,6 +2,7 @@
 
 module Main where
 
+import Control.Monad
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.ByteString.Lazy.Char8 as Char8
@@ -13,6 +14,7 @@ import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import System.Process (callProcess)
 import Target.X86.Assembler
+import Target.X86.Assembly
 import Target.X86.Printer
 import Target.X86.Random
 
@@ -22,12 +24,35 @@ main =
     [ Hedgehog.checkParallel $
         Hedgehog.Group
           "X86"
-          [("Assembler matches GNU as", prop_x86Assembler)]
+          [ ("Assembler matches GNU as selected instructions", test_x86Assembler)
+          , ("Assembler matches GNU as on random instructions", prop_x86Assembler)
+          ]
     ]
 
+test_x86Assembler :: Hedgehog.Property
+test_x86Assembler =
+  Hedgehog.withTests 1 $
+    Hedgehog.property $
+      forM_ instructions $ matchGNUAssembler . pure
+  where
+    instructions =
+      [ Add
+          (Address (Address' (Just R13) (Just (RAX, Scale1)) 0))
+          (Immediate 0)
+      , Add
+          (Address (Address' (Just RBP) (Just (RAX, Scale1)) 0))
+          (Immediate 0)
+      ]
+
 prop_x86Assembler :: Hedgehog.Property
-prop_x86Assembler = Hedgehog.property $ do
-  instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) generateInstruction
+prop_x86Assembler =
+  Hedgehog.withTests 1000 $
+    Hedgehog.property $ do
+      instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) generateInstruction
+      matchGNUAssembler instructions
+
+matchGNUAssembler :: [Instruction] -> Hedgehog.PropertyT IO ()
+matchGNUAssembler instructions = do
   let assemblyCode =
         Builder.toLazyByteString $
           ".intel_syntax noprefix\n" <> printInstructions instructions
