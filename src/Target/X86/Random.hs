@@ -65,8 +65,9 @@ generateAddress :: Gen Address
 generateAddress =
   Address'
     <$> optional generateRegister
-    <*> optional generateScaledRegister
+    <*> optional generateScaledIndexRegister
     <*> generateDisplacement
   where
-    generateScaledRegister = (,) <$> generateRegister <*> Gen.enumBounded
+    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
     generateDisplacement = Gen.int32 Range.linearBounded
+    generateIndexRegister = Gen.filter (/= RSP) generateRegister
