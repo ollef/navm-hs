@@ -197,15 +197,18 @@ assembleInstruction instruction =
           rexReg = regWord `shiftR` 3
           regOp = regWord .&. 0b111
       word8 (0x48 .|. rexReg) <> word8 (0xb8 .|. regOp) <> int64 imm64
-    Mov (Register dst) (Address addr) ->
-      flattenDescription (word8 0x8b) $
-        operandSize64 <> modRMRm RSP <> address addr <> modRMReg dst
-    Mov (Address addr) (Immediate (toImm32 -> Just imm32)) ->
-      flattenDescription (word8 0xc7) $
-        (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
     Mov (Register dst) (Register src) ->
       flattenDescription (word8 0x89) $
         operandSize64 <> modRMMod 0b11 <> modRMRm dst <> modRMReg src
+    Mov (Register dst) (Address addr) ->
+      flattenDescription (word8 0x8b) $
+        operandSize64 <> modRMRm RSP <> address addr <> modRMReg dst
+    Mov (Address addr) (Register src) ->
+      flattenDescription (word8 0x89) $
+        operandSize64 <> modRMRm RSP <> address addr <> modRMReg src
+    Mov (Address addr) (Immediate (toImm32 -> Just imm32)) ->
+      flattenDescription (word8 0xc7) $
+        (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
     Mov (Address _) (Address _) -> error "too many memory operands for mov"
     Mov _ _ -> mempty
 
