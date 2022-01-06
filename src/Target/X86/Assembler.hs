@@ -209,8 +209,9 @@ assembleInstruction instruction =
     Mov (Address addr) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (word8 0xc7) $
         (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
+    Mov (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Mov (Address _) (Address _) -> error "too many memory operands for mov"
-    Mov _ _ -> mempty
+    Mov (Immediate _) _ -> error "immediate destination operand"
 
 toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
 toImm8 a = fromIntegral <$> (toIntegralSized a :: Maybe Int8)
