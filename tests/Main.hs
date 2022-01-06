@@ -24,8 +24,8 @@ main =
     [ Hedgehog.checkParallel $
         Hedgehog.Group
           "X86"
-          [ ("Assembler matches GNU as selected instructions", test_x86Assembler)
-          , ("Assembler matches GNU as on random instructions", prop_x86Assembler)
+          [ ("Assembler matches 'GNU as' on selected instructions", test_x86Assembler)
+          , ("Assembler matches 'GNU as' on random instructions", prop_x86Assembler)
           ]
     ]
 
