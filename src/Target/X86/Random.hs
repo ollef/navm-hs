@@ -35,7 +35,7 @@ generateOperand dst =
 generateMovOperand :: Operand -> Gen Operand
 generateMovOperand dst =
   Gen.choice
-    [ Immediate <$> generateMovImmediate
+    [ Immediate <$> generateMovImmediate dst
     , Register <$> generateRegister
     , case dst of
         Address _ -> empty
@@ -52,8 +52,11 @@ generateDestinationOperand =
 generateImmediate :: Gen Int64
 generateImmediate = fromIntegral <$> Gen.int32 Range.linearBounded
 
-generateMovImmediate :: Gen Int64
-generateMovImmediate = Gen.int64 Range.linearBounded
+generateMovImmediate :: Operand -> Gen Int64
+generateMovImmediate dst =
+  case dst of
+    Register _ -> Gen.int64 Range.linearBounded
+    _ -> generateImmediate
 
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
