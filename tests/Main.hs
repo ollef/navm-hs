@@ -33,7 +33,9 @@ test_x86Assembler :: Hedgehog.Property
 test_x86Assembler =
   Hedgehog.withTests 1 $
     Hedgehog.property $
-      forM_ instructions $ matchGNUAssembler . pure
+      forM_ instructions $ \instruction -> do
+        Hedgehog.annotateShow instruction
+        matchGNUAssembler [instruction]
   where
     instructions =
       [ Add
