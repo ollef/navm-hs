@@ -24,23 +24,23 @@ generateInstruction =
 
 generateOperand :: Maybe Operand -> Gen Operand
 generateOperand dst =
-  Gen.choice
+  Gen.choice $
     [ Immediate <$> generateImmediate
     , Register <$> generateRegister
-    , case dst of
-        Just (Address _) -> empty
-        _ -> Address <$> generateAddress
     ]
+      <> case dst of
+        Just (Address _) -> []
+        _ -> [Address <$> generateAddress]
 
 generateMovOperand :: Operand -> Gen Operand
 generateMovOperand dst =
-  Gen.choice
+  Gen.choice $
     [ Immediate <$> generateMovImmediate dst
     , Register <$> generateRegister
-    , case dst of
-        Address _ -> empty
-        _ -> Address <$> generateAddress
     ]
+      <> case dst of
+        Address _ -> []
+        _ -> [Address <$> generateAddress]
 
 generateDestinationOperand :: Gen Operand
 generateDestinationOperand =
