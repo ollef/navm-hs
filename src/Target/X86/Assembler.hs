@@ -127,26 +127,29 @@ sibScale scale =
     scaleWord = fromEnum8 scale
 
 address :: Address -> Description
-address (Address' (Just base) (Just (RSP, Scale1)) displacement)
-  | base /= RSP =
-    address $ Address' (Just RSP) (Just (base, Scale1)) displacement
-address (Address' Nothing Nothing displacement) =
-  (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = int32 displacement}
-address (Address' (Just base) Nothing 0) =
-  modRMMod 0b00 <> sibBase base <> sibIndex RSP
-address (Address' (Just base) (Just (index, scale)) 0)
-  | base /= RBP && base /= R13 =
-    modRMMod 0b00 <> sibBase base <> sibIndex index <> sibScale scale
-address (Address' (Just base) (Just (index, scale)) (toImm8 -> Just displacement8)) =
-  (modRMMod 0b01 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = word8 displacement8}
-address (Address' (Just base) Nothing (toImm8 -> Just displacment8)) =
-  (modRMMod 0b01 <> sibBase base <> sibIndex RSP) {displacement = word8 displacment8}
-address (Address' (Just base) (Just (index, scale)) displacement) =
-  (modRMMod 0b10 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = int32 displacement}
-address (Address' (Just base) Nothing displacement) =
-  (modRMMod 0b10 <> sibBase base <> sibIndex RSP) {displacement = int32 displacement}
-address (Address' Nothing (Just (index, scale)) displacement) =
-  (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = int32 displacement}
+address addr =
+  modRMRm RSP
+    <> case addr of
+      Address' (Just base) (Just (RSP, Scale1)) displacement
+        | base /= RSP ->
+          address $ Address' (Just RSP) (Just (base, Scale1)) displacement
+      Address' Nothing Nothing displacement ->
+        (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = int32 displacement}
+      Address' (Just base) Nothing 0 ->
+        modRMMod 0b00 <> sibBase base <> sibIndex RSP
+      Address' (Just base) (Just (index, scale)) 0
+        | base /= RBP && base /= R13 ->
+          modRMMod 0b00 <> sibBase base <> sibIndex index <> sibScale scale
+      Address' (Just base) (Just (index, scale)) (toImm8 -> Just displacement8) ->
+        (modRMMod 0b01 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = word8 displacement8}
+      Address' (Just base) Nothing (toImm8 -> Just displacment8) ->
+        (modRMMod 0b01 <> sibBase base <> sibIndex RSP) {displacement = word8 displacment8}
+      Address' (Just base) (Just (index, scale)) displacement ->
+        (modRMMod 0b10 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = int32 displacement}
+      Address' (Just base) Nothing displacement ->
+        (modRMMod 0b10 <> sibBase base <> sibIndex RSP) {displacement = int32 displacement}
+      Address' Nothing (Just (index, scale)) displacement ->
+        (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = int32 displacement}
 
 assembleInstruction :: Instruction -> MachineCodeBuilder
 assembleInstruction instruction =
@@ -169,17 +172,17 @@ assembleInstruction instruction =
     Add (Register _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Register dst) (Address addr) ->
       flattenDescription (word8 0x03) $
-        operandSize64 <> modRMRm RSP <> address addr <> modRMReg dst
+        operandSize64 <> address addr <> modRMReg dst
     Add (Immediate _) _ -> error "immediate destination operand"
     Add (Address addr) (Register src) ->
       flattenDescription (word8 0x01) $
-        operandSize64 <> modRMRm RSP <> address addr <> modRMReg src
+        operandSize64 <> address addr <> modRMReg src
     Add (Address addr) (Immediate (toImm8 -> Just imm8)) ->
       flattenDescription (word8 0x83) $
-        (operandSize64 <> modRMRm RSP <> address addr) {immediate = word8 imm8}
+        (operandSize64 <> address addr) {immediate = word8 imm8}
     Add (Address addr) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (word8 0x81) $
-        (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
+        (operandSize64 <> address addr) {immediate = int32 imm32}
     Add (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Address _) (Address _) -> error "too many address operands"
     Mul (RDX, RAX) RAX (Register src) ->
@@ -187,7 +190,7 @@ assembleInstruction instruction =
         operandSize64 <> modRMExt 4 <> modRMMod 0b11 <> modRMRm src
     Mul (RDX, RAX) RAX (Address addr) ->
       flattenDescription (word8 0xf7) $
-        operandSize64 <> modRMExt 4 <> modRMRm RSP <> address addr
+        operandSize64 <> modRMExt 4 <> address addr
     Mul {} -> error "invalid mul operands"
     Call (Register r) ->
       flattenDescription (word8 0xff) $
@@ -195,7 +198,7 @@ assembleInstruction instruction =
     Call (Immediate _) -> word8 0xe8 <> int32 0
     Call (Address addr) ->
       flattenDescription (word8 0xff) $
-        address addr <> modRMExt 2 <> modRMRm RSP
+        address addr <> modRMExt 2
     Ret -> word8 0xc3 -- RET
     Mov (Register dst) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
@@ -211,13 +214,13 @@ assembleInstruction instruction =
         operandSize64 <> modRMMod 0b11 <> modRMRm dst <> modRMReg src
     Mov (Register dst) (Address addr) ->
       flattenDescription (word8 0x8b) $
-        operandSize64 <> modRMRm RSP <> address addr <> modRMReg dst
+        operandSize64 <> address addr <> modRMReg dst
     Mov (Address addr) (Register src) ->
       flattenDescription (word8 0x89) $
-        operandSize64 <> modRMRm RSP <> address addr <> modRMReg src
+        operandSize64 <> address addr <> modRMReg src
     Mov (Address addr) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (word8 0xc7) $
-        (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
+        (operandSize64 <> address addr) {immediate = int32 imm32}
     Mov (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Mov (Address _) (Address _) -> error "too many memory operands"
     Mov (Immediate _) _ -> error "immediate destination operand"
