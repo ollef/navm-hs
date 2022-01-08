@@ -180,7 +180,8 @@ assembleInstruction instruction =
     Add (Address addr) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (word8 0x81) $
         (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
-    Add _ _ -> mempty
+    Add (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
+    Add (Address _) (Address _) -> error "too many address operands"
     Call (Register r) ->
       flattenDescription (word8 0xff) $
         modRMMod 0b11 <> modRMExt 2 <> modRMRm r
