@@ -134,8 +134,9 @@ address (Address' Nothing Nothing displacement) =
   (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = int32 displacement}
 address (Address' (Just base) Nothing 0) =
   modRMMod 0b00 <> sibBase base <> sibIndex RSP
-address (Address' (Just base) (Just (index, scale)) 0) =
-  modRMMod 0b00 <> sibBase base <> sibIndex index <> sibScale scale
+address (Address' (Just base) (Just (index, scale)) 0)
+  | base /= RBP && base /= R13 =
+    modRMMod 0b00 <> sibBase base <> sibIndex index <> sibScale scale
 address (Address' (Just base) (Just (index, scale)) (toImm8 -> Just displacement8)) =
   (modRMMod 0b01 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = word8 displacement8}
 address (Address' (Just base) Nothing (toImm8 -> Just displacment8)) =
