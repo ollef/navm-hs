@@ -14,6 +14,7 @@ generateInstruction =
         dst <- generateDestinationOperand
         src <- generateOperand $ Just dst
         pure $ Add dst src
+    , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand
     , Call <$> generateOperand Nothing
     , pure Ret
     , do
@@ -31,6 +32,13 @@ generateOperand dst =
       <> case dst of
         Just (Address _) -> []
         _ -> [Address <$> generateAddress]
+
+generateRegisterOrAddressOperand :: Gen Operand
+generateRegisterOrAddressOperand =
+  Gen.choice
+    [ Register <$> generateRegister
+    , Address <$> generateAddress
+    ]
 
 generateMovOperand :: Operand -> Gen Operand
 generateMovOperand dst =

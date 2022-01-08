@@ -70,6 +70,7 @@ data Operand
 
 data Instruction
   = Add Operand Operand
+  | Mul !(Register, Register) Register Operand
   | Call Operand
   | Ret
   | Mov Operand Operand
@@ -86,6 +87,9 @@ call = fromInstruction . Call
 
 mov :: FromInstruction i => Operand -> Operand -> i
 mov o1 o2 = fromInstruction $ Mov o1 o2
+
+mul :: FromInstruction i => (Register, Register) -> Register -> Operand -> i
+mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
 instance Num Operand where
   fromInteger = Immediate . fromInteger

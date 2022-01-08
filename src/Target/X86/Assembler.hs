@@ -182,6 +182,13 @@ assembleInstruction instruction =
         (operandSize64 <> modRMRm RSP <> address addr) {immediate = int32 imm32}
     Add (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Address _) (Address _) -> error "too many address operands"
+    Mul (RDX, RAX) RAX (Register src) ->
+      flattenDescription (word8 0xf7) $
+        operandSize64 <> modRMExt 4 <> modRMMod 0b11 <> modRMRm src
+    Mul (RDX, RAX) RAX (Address addr) ->
+      flattenDescription (word8 0xf7) $
+        operandSize64 <> modRMExt 4 <> modRMRm RSP <> address addr
+    Mul {} -> error "invalid mul operands"
     Call (Register r) ->
       flattenDescription (word8 0xff) $
         modRMMod 0b11 <> modRMExt 2 <> modRMRm r
