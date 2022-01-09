@@ -17,10 +17,10 @@ contains reg Class {mask, pattern} = fromEnum8 reg .&. mask == pattern
 
 registers :: Class -> [Register]
 registers Class {mask, pattern} = do
-  b0 <- b 0
-  b1 <- b 1
-  b2 <- b 2
   b3 <- b 3
+  b2 <- b 2
+  b1 <- b 1
+  b0 <- b 0
   pure $ toEnum $ fromIntegral $ b3 .|. b2 .|. b1 .|. b0
   where
     b i
