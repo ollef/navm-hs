@@ -15,26 +15,7 @@ import Data.Kind
 import qualified Data.Map as Map
 import Data.Maybe
 import GHC.Exts
-import Target.X86.Register as X (
-  FromRegister (fromRegister),
-  Register (..),
-  r10,
-  r11,
-  r12,
-  r13,
-  r14,
-  r15,
-  r8,
-  r9,
-  rax,
-  rbp,
-  rbx,
-  rcx,
-  rdi,
-  rdx,
-  rsi,
-  rsp,
- )
+import Target.X86.Register as X
 
 data Address reg = Address' !(Maybe reg) !(Maybe (reg, Scale)) !Int32
   deriving (Show, Eq)
