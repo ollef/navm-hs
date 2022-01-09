@@ -38,7 +38,7 @@ test_x86Assembler =
         Hedgehog.annotateShow instruction
         matchGNUAssembler [instruction]
   where
-    instructions :: [Instruction]
+    instructions :: [Instruction Register]
     instructions =
       [ add [r13 + rax] [r13 + rax] 0
       , add [rbp + rax] [rbp + rax] 0
@@ -53,7 +53,7 @@ prop_x86Assembler =
       instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) generateInstruction
       matchGNUAssembler instructions
 
-matchGNUAssembler :: [Instruction] -> Hedgehog.PropertyT IO ()
+matchGNUAssembler :: [Instruction Register] -> Hedgehog.PropertyT IO ()
 matchGNUAssembler instructions = do
   let assemblyCode =
         Builder.toLazyByteString $

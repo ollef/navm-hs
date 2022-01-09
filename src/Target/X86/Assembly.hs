@@ -11,6 +11,7 @@ module Target.X86.Assembly (
 import Control.Applicative
 import Data.Bifunctor
 import Data.Int
+import Data.Kind
 import qualified Data.Map as Map
 import Data.Maybe
 import GHC.Exts
@@ -35,7 +36,7 @@ import Target.X86.Register as X (
   rsp,
  )
 
-data Address = Address' !(Maybe Register) !(Maybe (Register, Scale)) !Int32
+data Address reg = Address' !(Maybe reg) !(Maybe (reg, Scale)) !Int32
   deriving (Show, Eq)
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
@@ -56,7 +57,7 @@ fromScale s = case s of
   Scale4 -> 4
   Scale8 -> 8
 
-scaledRegister :: Integral a => Register -> a -> Maybe (Maybe Register, Maybe (Register, Scale))
+scaledRegister :: Integral a => reg -> a -> Maybe (Maybe reg, Maybe (reg, Scale))
 scaledRegister _ 0 = Just (Nothing, Nothing)
 scaledRegister reg n
   | Just Scale1 <- toScale n = Just (Just reg, Nothing)
@@ -64,36 +65,36 @@ scaledRegister reg n
   | Just scale <- toScale $ n - 1 = Just (Just reg, Just (reg, scale))
   | otherwise = Nothing
 
-data Operand
+data Operand reg
   = Immediate !Int64
-  | Register !Register
-  | Address !Address
+  | Register !reg
+  | Address !(Address reg)
   deriving (Show, Eq)
 
-data Instruction
-  = Add Operand Operand Operand
-  | Mul !(Register, Register) Register Operand
-  | Call Operand
+data Instruction reg
+  = Add (Operand reg) (Operand reg) (Operand reg)
+  | Mul !(reg, reg) reg (Operand reg)
+  | Call (Operand reg)
   | Ret
-  | Mov Operand Operand
+  | Mov (Operand reg) (Operand reg)
   deriving (Show, Eq)
 
-add :: FromInstruction i => Operand -> Operand -> Operand -> i
+add :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> Operand reg -> i
 add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
 
 ret :: FromInstruction i => i
 ret = fromInstruction Ret
 
-call :: FromInstruction i => Operand -> i
+call :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> i
 call = fromInstruction . Call
 
-mov :: FromInstruction i => Operand -> Operand -> i
+mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
 mov o1 o2 = fromInstruction $ Mov o1 o2
 
-mul :: FromInstruction i => (Register, Register) -> Register -> Operand -> i
+mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
 mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
-instance Num Operand where
+instance Num (Operand reg) where
   fromInteger = Immediate . fromInteger
   _ + _ = error "not implemented"
   _ - _ = error "not implemented"
@@ -101,7 +102,7 @@ instance Num Operand where
   abs = error "not implemented"
   signum = error "not implemented"
 
-instance Num Address where
+instance Ord reg => Num (Address reg) where
   fromInteger i = Address' Nothing Nothing (fromInteger i)
   Address' base1 index1 disp1 + Address' base2 index2 disp2 =
     Address' base index (disp1 + disp2)
@@ -162,32 +163,44 @@ instance Num Address where
   abs = error "abs"
   signum = error "signum"
 
-instance FromRegister Address where
+type family RegisterType a :: Type
+
+type instance RegisterType (Address reg) = reg
+
+type instance RegisterType (Operand reg) = reg
+
+type instance RegisterType (Instruction reg) = reg
+
+type instance RegisterType [a] = RegisterType a
+
+type instance RegisterType (Const a b) = RegisterType a
+
+instance reg ~ Register => FromRegister (Address reg) where
   fromRegister r = Address' (Just r) Nothing 0
 
-instance FromRegister Operand where
+instance reg ~ Register => FromRegister (Operand reg) where
   fromRegister = Register
 
 class FromAddress a where
-  fromAddress :: Address -> a
+  fromAddress :: Address (RegisterType a) -> a
 
-instance FromAddress Address where
+instance FromAddress (Address reg) where
   fromAddress = id
 
-instance FromAddress Operand where
+instance FromAddress (Operand reg) where
   fromAddress = Address
 
-instance IsList Operand where
-  type Item Operand = Address
+instance IsList (Operand reg) where
+  type Item (Operand reg) = Address reg
   fromList [addr] = Address addr
   fromList _ = error "address operand list doesn't have one element"
   toList (Address addr) = [addr]
   toList _ = error "operand isn't an address"
 
 class FromInstruction a where
-  fromInstruction :: Instruction -> a
+  fromInstruction :: Instruction (RegisterType a) -> a
 
-instance FromInstruction Instruction where
+instance FromInstruction (Instruction reg) where
   fromInstruction = id
 
 instance FromInstruction a => FromInstruction (Const a b) where

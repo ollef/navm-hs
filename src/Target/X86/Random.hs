@@ -7,7 +7,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Target.X86.Assembly
 
-generateInstruction :: Gen Instruction
+generateInstruction :: Gen (Instruction Register)
 generateInstruction =
   Gen.choice
     [ do
@@ -23,7 +23,7 @@ generateInstruction =
         pure $ Mov dst src
     ]
 
-generateOperand :: Maybe Operand -> Gen Operand
+generateOperand :: Maybe (Operand Register) -> Gen (Operand Register)
 generateOperand dst =
   Gen.choice $
     [ Immediate <$> generateImmediate
@@ -33,14 +33,14 @@ generateOperand dst =
         Just (Address _) -> []
         _ -> [Address <$> generateAddress]
 
-generateRegisterOrAddressOperand :: Gen Operand
+generateRegisterOrAddressOperand :: Gen (Operand Register)
 generateRegisterOrAddressOperand =
   Gen.choice
     [ Register <$> generateRegister
     , Address <$> generateAddress
     ]
 
-generateMovOperand :: Operand -> Gen Operand
+generateMovOperand :: Operand Register -> Gen (Operand Register)
 generateMovOperand dst =
   Gen.choice $
     [ Immediate <$> generateMovImmediate dst
@@ -50,7 +50,7 @@ generateMovOperand dst =
         Address _ -> []
         _ -> [Address <$> generateAddress]
 
-generateDestinationOperand :: Gen Operand
+generateDestinationOperand :: Gen (Operand Register)
 generateDestinationOperand =
   Gen.choice
     [ Register <$> generateRegister
@@ -60,7 +60,7 @@ generateDestinationOperand =
 generateImmediate :: Gen Int64
 generateImmediate = fromIntegral <$> Gen.int32 Range.linearBounded
 
-generateMovImmediate :: Operand -> Gen Int64
+generateMovImmediate :: Operand Register -> Gen Int64
 generateMovImmediate dst =
   case dst of
     Register _ -> Gen.int64 Range.linearBounded
@@ -69,7 +69,7 @@ generateMovImmediate dst =
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
 
-generateAddress :: Gen Address
+generateAddress :: Gen (Address Register)
 generateAddress =
   Address'
     <$> optional generateRegister

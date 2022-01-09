@@ -8,11 +8,11 @@ import Data.List (intersperse)
 import Data.Maybe
 import Target.X86.Assembly
 
-printInstructions :: [Instruction] -> Builder
+printInstructions :: [Instruction Register] -> Builder
 printInstructions =
   mconcat . map (\i -> printInstruction i <> "\n")
 
-printInstruction :: Instruction -> Builder
+printInstruction :: Instruction Register -> Builder
 printInstruction instruction =
   case instruction of
     Add o1 _ o2 -> "add\t" <> printOperand o1 <> ", " <> printOperand o2
@@ -22,7 +22,7 @@ printInstruction instruction =
     Ret -> "ret"
     Mov o1 o2 -> "mov\t" <> printOperand o1 <> ", " <> printOperand o2
 
-printOperand :: Operand -> Builder
+printOperand :: Operand Register -> Builder
 printOperand operand =
   case operand of
     Immediate i -> Builder.int64Dec i
@@ -49,7 +49,7 @@ printRegister register =
     R14 -> "r14"
     R15 -> "r15"
 
-printAddress :: Address -> Builder
+printAddress :: Address Register -> Builder
 printAddress (Address' maybeBase maybeIndex disp) =
   case addends of
     [] -> "qword ptr [0]"

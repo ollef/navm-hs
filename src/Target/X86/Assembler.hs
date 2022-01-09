@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Target.X86.Assembler where
@@ -30,7 +31,7 @@ newtype MachineCodeBuilder = MachineCodeBuilder Builder
 buildMachineCode :: MachineCodeBuilder -> MachineCode
 buildMachineCode (MachineCodeBuilder b) = MachineCode $ Builder.toLazyByteString b
 
-assembleInstructions :: [Instruction] -> MachineCodeBuilder
+assembleInstructions :: [Instruction Register] -> MachineCodeBuilder
 assembleInstructions =
   mconcat . map assembleInstruction
 
@@ -126,7 +127,7 @@ sibScale scale =
   where
     scaleWord = fromEnum8 scale
 
-address :: Address -> Description
+address :: Address Register -> Description
 address addr =
   modRMRm RSP
     <> case addr of
@@ -151,7 +152,7 @@ address addr =
       Address' Nothing (Just (index, scale)) displacement ->
         (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = int32 displacement}
 
-assembleInstruction :: Instruction -> MachineCodeBuilder
+assembleInstruction :: Instruction Register -> MachineCodeBuilder
 assembleInstruction instruction =
   case instruction of
     Add (Register dst) _ (Register src) ->
@@ -243,6 +244,8 @@ int64 = MachineCodeBuilder . Builder.int64LE
 fromEnum8 :: Enum a => a -> Word8
 fromEnum8 x =
   fromIntegral (fromEnum x)
+
+type instance RegisterType MachineCodeBuilder = Register
 
 instance FromInstruction MachineCodeBuilder where
   fromInstruction = assembleInstruction
