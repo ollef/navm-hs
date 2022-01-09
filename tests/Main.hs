@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -37,13 +38,12 @@ test_x86Assembler =
         Hedgehog.annotateShow instruction
         matchGNUAssembler [instruction]
   where
+    instructions :: [Instruction]
     instructions =
-      [ Add
-          (Address (Address' (Just R13) (Just (RAX, Scale1)) 0))
-          (Immediate 0)
-      , Add
-          (Address (Address' (Just RBP) (Just (RAX, Scale1)) 0))
-          (Immediate 0)
+      [ add [r13 + rax] [r13 + rax] 0
+      , add [rbp + rax] [rbp + rax] 0
+      , add [rbp + rax * 4] [rbp + rax * 4] 0
+      , add [r13 + rax * 4] [r13 + rax * 4] 0
       ]
 
 prop_x86Assembler :: Hedgehog.Property

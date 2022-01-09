@@ -52,15 +52,15 @@ data Operand
   deriving (Show, Eq)
 
 data Instruction
-  = Add Operand Operand
+  = Add Operand Operand Operand
   | Mul !(Register, Register) Register Operand
   | Call Operand
   | Ret
   | Mov Operand Operand
   deriving (Show, Eq)
 
-add :: FromInstruction i => Operand -> Operand -> i
-add o1 o2 = fromInstruction $ Add o1 o2
+add :: FromInstruction i => Operand -> Operand -> Operand -> i
+add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
 
 ret :: FromInstruction i => i
 ret = fromInstruction Ret

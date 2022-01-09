@@ -13,7 +13,7 @@ generateInstruction =
     [ do
         dst <- generateDestinationOperand
         src <- generateOperand $ Just dst
-        pure $ Add dst src
+        pure $ Add dst dst src
     , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand
     , Call <$> generateOperand Nothing
     , pure Ret

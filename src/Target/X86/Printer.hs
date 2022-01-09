@@ -15,7 +15,7 @@ printInstructions =
 printInstruction :: Instruction -> Builder
 printInstruction instruction =
   case instruction of
-    Add o1 o2 -> "add\t" <> printOperand o1 <> ", " <> printOperand o2
+    Add o1 _ o2 -> "add\t" <> printOperand o1 <> ", " <> printOperand o2
     Mul (RDX, RAX) RAX o -> "mul\t" <> printOperand o
     Mul {} -> error "invalid mul operands"
     Call o -> "call\t" <> printOperand o

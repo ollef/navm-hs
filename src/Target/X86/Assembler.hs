@@ -154,37 +154,37 @@ address addr =
 assembleInstruction :: Instruction -> MachineCodeBuilder
 assembleInstruction instruction =
   case instruction of
-    Add (Register dst) (Register src) ->
+    Add (Register dst) _ (Register src) ->
       flattenDescription (word8 0x01) $
         operandSize64 <> modRMMod 0b11 <> modRMRm dst <> modRMReg src
-    Add (Register dst) (Immediate (toImm8 -> Just imm8)) ->
+    Add (Register dst) _ (Immediate (toImm8 -> Just imm8)) ->
       flattenDescription
         (word8 0x83)
         (operandSize64 <> modRMMod 0b11 <> modRMRm dst) {immediate = word8 imm8}
-    Add (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
+    Add (Register RAX) (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
         (word8 0x05)
         operandSize64 {immediate = int32 imm32}
-    Add (Register dst) (Immediate (toImm32 -> Just imm32)) ->
+    Add (Register dst) (Register ((== dst) -> True)) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
         (word8 0x81)
         (operandSize64 <> modRMMod 0b11 <> modRMRm dst) {immediate = int32 imm32}
-    Add (Register _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
-    Add (Register dst) (Address addr) ->
+    Add (Register _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
+    Add (Register dst) _ (Address addr) ->
       flattenDescription (word8 0x03) $
         operandSize64 <> address addr <> modRMReg dst
-    Add (Immediate _) _ -> error "immediate destination operand"
-    Add (Address addr) (Register src) ->
+    Add (Immediate _) _ _ -> error "immediate destination operand"
+    Add (Address addr) _ (Register src) ->
       flattenDescription (word8 0x01) $
         operandSize64 <> address addr <> modRMReg src
-    Add (Address addr) (Immediate (toImm8 -> Just imm8)) ->
+    Add (Address addr) _ (Immediate (toImm8 -> Just imm8)) ->
       flattenDescription (word8 0x83) $
         (operandSize64 <> address addr) {immediate = word8 imm8}
-    Add (Address addr) (Immediate (toImm32 -> Just imm32)) ->
+    Add (Address addr) _ (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (word8 0x81) $
         (operandSize64 <> address addr) {immediate = int32 imm32}
-    Add (Address _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
-    Add (Address _) (Address _) -> error "too many address operands"
+    Add (Address _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
+    Add (Address _) _ (Address _) -> error "too many address operands"
     Mul (RDX, RAX) RAX (Register src) ->
       flattenDescription (word8 0xf7) $
         operandSize64 <> modRMExt 4 <> modRMMod 0b11 <> modRMRm src
