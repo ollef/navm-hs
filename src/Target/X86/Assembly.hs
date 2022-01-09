@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -18,7 +21,7 @@ import GHC.Exts
 import Target.X86.Register as X
 
 data Address reg = Address' !(Maybe reg) !(Maybe (reg, Scale)) !Int32
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
   deriving (Show, Eq, Enum, Bounded)
@@ -50,7 +53,7 @@ data Operand reg
   = Immediate !Int64
   | Register !reg
   | Address !(Address reg)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Instruction reg
   = Add (Operand reg) (Operand reg) (Operand reg)
@@ -58,7 +61,7 @@ data Instruction reg
   | Call (Operand reg)
   | Ret
   | Mov (Operand reg) (Operand reg)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 add :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> Operand reg -> i
 add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
