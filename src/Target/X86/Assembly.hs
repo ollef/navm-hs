@@ -20,11 +20,40 @@ import Data.Maybe
 import GHC.Exts
 import Target.X86.Register as X
 
+data Instruction reg
+  = Add (Operand reg) (Operand reg) (Operand reg)
+  | Mul !(reg, reg) reg (Operand reg)
+  | Call (Operand reg)
+  | Ret
+  | Mov (Operand reg) (Operand reg)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
+data Operand reg
+  = Immediate !Int64
+  | Register !reg
+  | Address !(Address reg)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
 data Address reg = Address' !(Maybe reg) !(Maybe (reg, Scale)) !Int32
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
   deriving (Show, Eq, Enum, Bounded)
+
+add :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> Operand reg -> i
+add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
+
+ret :: FromInstruction i => i
+ret = fromInstruction Ret
+
+call :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> i
+call = fromInstruction . Call
+
+mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
+mov o1 o2 = fromInstruction $ Mov o1 o2
+
+mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
+mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
 toScale :: Integral a => a -> Maybe Scale
 toScale a = case fromIntegral a :: Integer of
@@ -48,35 +77,6 @@ scaledRegister reg n
   | Just scale <- toScale n = Just (Nothing, Just (reg, scale))
   | Just scale <- toScale $ n - 1 = Just (Just reg, Just (reg, scale))
   | otherwise = Nothing
-
-data Operand reg
-  = Immediate !Int64
-  | Register !reg
-  | Address !(Address reg)
-  deriving (Show, Eq, Functor, Foldable, Traversable)
-
-data Instruction reg
-  = Add (Operand reg) (Operand reg) (Operand reg)
-  | Mul !(reg, reg) reg (Operand reg)
-  | Call (Operand reg)
-  | Ret
-  | Mov (Operand reg) (Operand reg)
-  deriving (Show, Eq, Functor, Foldable, Traversable)
-
-add :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> Operand reg -> i
-add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
-
-ret :: FromInstruction i => i
-ret = fromInstruction Ret
-
-call :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> i
-call = fromInstruction . Call
-
-mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
-mov o1 o2 = fromInstruction $ Mov o1 o2
-
-mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
-mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
 instance Num (Operand reg) where
   fromInteger = Immediate . fromInteger
