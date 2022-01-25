@@ -29,10 +29,12 @@ ghc-options:
 library:
   source-dirs: src
   dependencies:
+    - byte-order
     - bytestring
     - containers
     - hashable
     - hedgehog
+    - primitive
     - unordered-containers
 
 executables:
