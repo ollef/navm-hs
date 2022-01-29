@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -10,27 +9,21 @@ module ArrayBuilder where
 
 import Control.Monad.ST
 import Data.Foldable
-import Data.Int
 import Data.Primitive.PrimArray
 import Data.Primitive.Ptr
 import Data.Semigroup
 import Data.Word
 import GHC.Exts hiding (build)
 import GHC.ST
+import Offset (Offset (Offset))
 import Prelude hiding (max, min)
 
-newtype Size = Size Int
-  deriving (Show, Eq, Ord, Num, Real, Enum, Integral)
-
 data ArrayBuilder s = ArrayBuilder
-  { size :: !Size
+  { size :: !Offset
   , function :: !((# State# s, Addr# #) -> State# s)
   }
 
-st ::
-  Size ->
-  (Ptr Word8 -> ST s ()) ->
-  ArrayBuilder s
+st :: Offset -> (Ptr Word8 -> ST s ()) -> ArrayBuilder s
 st bytes f =
   ArrayBuilder bytes $ \(# s, addr #) -> do
     let (ST inner) = f (Ptr addr)
