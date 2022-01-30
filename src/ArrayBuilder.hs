@@ -92,3 +92,8 @@ overlays builders =
     go (ArrayBuilder _ function : builders') arg@(# _, addr #) = do
       let !s' = function arg
       go builders' (# s', addr #)
+
+offset :: Offset -> ArrayBuilder s -> ArrayBuilder s
+offset o (ArrayBuilder sz function) = ArrayBuilder (o <> sz) $ \(# s, addr #) -> do
+  let !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce o)
+  function (# s, addr' #)
