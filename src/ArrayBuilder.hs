@@ -57,27 +57,8 @@ instance Semigroup (ArrayBuilder m) where
       )
 
 instance Monoid (ArrayBuilder m) where
-  mempty = ArrayBuilder 0 (\(# s, _ #) -> s)
-  mconcat bs =
-    ArrayBuilder
-      ( foldl'
-          (\n (ArrayBuilder size _) -> n + size)
-          0
-          bs
-      )
-      ( snd $
-          foldl'
-            ( \(!size1, !f) (ArrayBuilder size2 g) ->
-                ( size1 + size2
-                , \x@(# _, addr #) -> do
-                    let !s = f x
-                        !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce size1)
-                    g (# s, addr' #)
-                )
-            )
-            (0, \(# s, _ #) -> s)
-            bs
-      )
+  mempty = skip 0
+  mconcat = foldl' (<>) mempty
 
 skip :: Offset -> ArrayBuilder s
 skip size = ArrayBuilder (coerce size) $ \(# s, _addr #) -> s
