@@ -146,18 +146,16 @@ rigidize (part : parts) acc state =
         Int8 -> (fromIntegral (minBound :: Int8), fromIntegral (maxBound :: Int8))
         Int32 -> (fromIntegral (minBound :: Int32), fromIntegral (maxBound :: Int32))
 
-selectAlternative :: Int -> [Part s] -> Builder s -> State -> Maybe ([Part s], State)
+selectAlternative :: Bool -> [Part s] -> Builder s -> State -> Maybe ([Part s], State)
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
     Rigid builder -> selectAlternative alternative parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
     Define _ -> error "selectAlternative: unexpected Define"
     Use _ _ -> error "selectAlternative: unexpected Use"
-    Flexible parts0 parts1 ->
-      case alternative of
-        0 -> rigidize (parts0 <> parts) acc state
-        1 -> rigidize (parts1 <> parts) acc state
-        _ -> error "selectAlternative: no such alternative"
+    Flexible parts0 parts1
+      | alternative -> rigidize (parts1 <> parts) acc state
+      | otherwise -> rigidize (parts0 <> parts) acc state
 
 toArrayBuilder :: Builder s -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
 toArrayBuilder (Builder initialParts) =
@@ -179,7 +177,7 @@ toArrayBuilder (Builder initialParts) =
         | offsets state == offsets state' ->
           -- We're not making any progress: see if selecting alternatives in
           -- the first flexible use gets us unstuck.
-          case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty, valid = mempty} | alternative <- [0 ..]] of
+          case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty, valid = mempty} | alternative <- [False, True]] of
             [] -> error "toBuilder: no alternative works"
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
