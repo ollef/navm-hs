@@ -22,7 +22,6 @@ import Data.Maybe
 import Data.Semigroup
 import Data.Tsil (Tsil)
 import qualified Data.Tsil as Tsil
-import GHC.Exts hiding (build)
 import Offset (Offset, offset)
 import qualified Offset
 import Prelude hiding (max, min)
@@ -79,7 +78,7 @@ rigidize :: [Part s] -> Builder s -> State -> Maybe ([Part s], State)
 rigidize [] (Builder acc) state = Just (Foldable.toList acc, state)
 rigidize (part : parts) acc state =
   case part of
-    Rigid builder -> rigidize parts (appendPart acc part) state {offsets = offset (coerce $ ArrayBuilder.size builder) $ offsets state}
+    Rigid builder -> rigidize parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
     Define label
       | Just _ <- Offset.rigid $ offsets state -> rigidize parts acc state {definitions = HashMap.insert label (offsets state) $ definitions state}
       | otherwise -> rigidize parts (appendPart acc part) state {definitions = HashMap.insert label (offsets state) $ definitions state}
@@ -95,7 +94,7 @@ rigidize (part : parts) acc state =
     flexibleUsesOffset :: NonEmpty (ArrayBuilder s, a) -> Offset.Flexible
     flexibleUsesOffset uses = Offset.Flexible minSize maxSize
       where
-        (Min minSize, Max maxSize) = foldMap (\(builder, _) -> (Min $ coerce $ ArrayBuilder.size builder, Max $ coerce $ ArrayBuilder.size builder)) uses
+        (Min minSize, Max maxSize) = foldMap (\(builder, _) -> (Min $ ArrayBuilder.size builder, Max $ ArrayBuilder.size builder)) uses
 
     selectFlexibleUse ::
       Label ->
@@ -143,7 +142,7 @@ selectAlternative :: Int -> [Part s] -> Builder s -> State -> Maybe ([Part s], S
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
-    Rigid builder -> selectAlternative alternative parts (appendPart acc part) state {offsets = offset (coerce $ ArrayBuilder.size builder) $ offsets state}
+    Rigid builder -> selectAlternative alternative parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
     Define _ -> error "selectAlternative: unexpected Define"
     Use _ _ -> error "selectAlternative: unexpected Use"
     FlexibleUse label uses -> do
