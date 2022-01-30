@@ -79,6 +79,9 @@ instance Monoid (ArrayBuilder m) where
             bs
       )
 
+skip :: Offset -> ArrayBuilder s
+skip size = ArrayBuilder (coerce size) $ \(# s, _addr #) -> s
+
 overlay :: ArrayBuilder s -> ArrayBuilder s -> ArrayBuilder s
 overlay (ArrayBuilder size1 function1) (ArrayBuilder size2 function2) =
   ArrayBuilder (max size1 size2) $ \(# s, addr #) -> do
@@ -95,11 +98,6 @@ overlays builders =
     go (ArrayBuilder _ function : builders') arg@(# _, addr #) = do
       let !s' = function arg
       go builders' (# s', addr #)
-
-offset :: Offset -> ArrayBuilder s -> ArrayBuilder s
-offset o (ArrayBuilder sz function) = ArrayBuilder (o <> sz) $ \(# s, addr #) -> do
-  let !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce o)
-  function (# s, addr' #)
 
 word8 :: Word8 -> ArrayBuilder s
 word8 w = st 1 $ \ptr -> writeOffPtr ptr 0 w
