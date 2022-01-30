@@ -184,8 +184,8 @@ toArrayBuilder (Builder initialParts) =
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
 
-toMachineCode :: (forall s. Builder s) -> MachineCode
-toMachineCode builder =
+run :: (forall s. Builder s) -> MachineCode
+run builder =
   MachineCode $
     ArrayBuilder.run $
       ArrayBuilder.overlays $ instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
