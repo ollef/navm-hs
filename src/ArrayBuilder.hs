@@ -9,13 +9,16 @@ module ArrayBuilder where
 
 import Control.Monad.ST
 import Data.Foldable
+import Data.Int
 import Data.Primitive.PrimArray
 import Data.Primitive.Ptr
 import Data.Semigroup
 import Data.Word
+import Foreign.Ptr (castPtr)
 import GHC.Exts hiding (build)
 import GHC.ST
 import Offset (Offset (Offset))
+import qualified System.ByteOrder as ByteOrder
 import Prelude
 
 data ArrayBuilder s = ArrayBuilder
@@ -97,3 +100,27 @@ offset :: Offset -> ArrayBuilder s -> ArrayBuilder s
 offset o (ArrayBuilder sz function) = ArrayBuilder (o <> sz) $ \(# s, addr #) -> do
   let !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce o)
   function (# s, addr' #)
+
+word8 :: Word8 -> ArrayBuilder s
+word8 w = st 1 $ \ptr -> writeOffPtr ptr 0 w
+
+word16 :: Word16 -> ArrayBuilder s
+word16 w = st 2 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+
+word32 :: Word32 -> ArrayBuilder s
+word32 w = st 4 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+
+word64 :: Word64 -> ArrayBuilder s
+word64 w = st 8 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+
+int8 :: Int8 -> ArrayBuilder s
+int8 = word8 . fromIntegral
+
+int16 :: Int16 -> ArrayBuilder s
+int16 = word16 . fromIntegral
+
+int32 :: Int32 -> ArrayBuilder s
+int32 = word32 . fromIntegral
+
+int64 :: Int64 -> ArrayBuilder s
+int64 = word64 . fromIntegral
