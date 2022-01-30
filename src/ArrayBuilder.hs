@@ -16,7 +16,7 @@ import Data.Word
 import GHC.Exts hiding (build)
 import GHC.ST
 import Offset (Offset (Offset))
-import Prelude hiding (max, min)
+import Prelude
 
 data ArrayBuilder s = ArrayBuilder
   { size :: !Offset
@@ -75,3 +75,20 @@ instance Monoid (ArrayBuilder m) where
             (0, \(# s, _ #) -> s)
             bs
       )
+
+overlay :: ArrayBuilder s -> ArrayBuilder s -> ArrayBuilder s
+overlay (ArrayBuilder size1 function1) (ArrayBuilder size2 function2) =
+  ArrayBuilder (max size1 size2) $ \(# s, addr #) -> do
+    let !s' = function1 (# s, addr #)
+    function2 (# s', addr #)
+
+overlays :: [ArrayBuilder s] -> ArrayBuilder s
+overlays builders =
+  ArrayBuilder
+    (foldl' (\n (ArrayBuilder size _) -> max n size) 0 builders)
+    (go builders)
+  where
+    go [] (# s, _ #) = s
+    go (ArrayBuilder _ function : builders') arg@(# _, addr #) = do
+      let !s' = function arg
+      go builders' (# s', addr #)
