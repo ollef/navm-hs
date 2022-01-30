@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Target.X86.MachineCode.Builder where
@@ -16,8 +16,6 @@ import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.Hashable
 import Data.Int
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import Data.Semigroup
 import Data.Tsil (Tsil)
@@ -26,14 +24,15 @@ import Data.Word
 import Offset (Offset, offset)
 import qualified Offset
 import Prelude hiding (max, min)
+import qualified Prelude
 
 newtype Builder s = Builder (Tsil (Part s))
   deriving (Monoid)
 
 data Part s
   = Rigid (ArrayBuilder s)
+  | Flexible [Part s] [Part s]
   | Define !Label
-  | FlexibleUse !Label (NonEmpty (ArrayBuilder s, LabelUse))
   | Use !Label !LabelUse
 
 newtype Label = Label ByteString
@@ -42,9 +41,12 @@ newtype Label = Label ByteString
 data LabelUseSize = Int8 | Int32
   deriving (Show, Eq, Ord)
 
+useSizeBytes :: LabelUseSize -> Offset
+useSizeBytes Int8 = 1
+useSizeBytes Int32 = 4
+
 data LabelUse = LabelUse
-  { positionOffset :: !Offset
-  , writeOffset :: !Offset
+  { writeOffset :: !Offset
   , size :: !LabelUseSize
   }
   deriving (Show)
@@ -62,17 +64,32 @@ appendPart (Builder parts) part =
         _ -> parts Tsil.:> part
       _ -> parts Tsil.:> part
 
+appendParts :: Builder s -> [Part s] -> Builder s
+appendParts = foldl' appendPart
+
 define :: Label -> Builder s
 define label = Builder $ pure $ Define label
 
-use :: Label -> LabelUseSize -> Offset -> Builder s
-use label labelSize writeOffset =
-  Builder $ pure $ Use label $ LabelUse {writeOffset, positionOffset = 0, size = labelSize}
+useRelativeToEnd :: Label -> LabelUseSize -> Builder s
+useRelativeToEnd label labelSize =
+  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = - byteSize, size = labelSize}]
+  where
+    byteSize = useSizeBytes labelSize
+
+data Valid = Possibly | Always
+  deriving (Eq, Ord, Show)
+
+instance Semigroup Valid where
+  (<>) = Prelude.min
+
+instance Monoid Valid where
+  mempty = Always
 
 data State = State
   { offsets :: !Offset.Flexible
   , definitions :: HashMap Label Offset.Flexible
   , rigidUses :: HashMap Label [(Offset, LabelUse)]
+  , valid :: !Valid
   }
 
 rigidize :: [Part s] -> Builder s -> State -> Maybe ([Part s], State)
@@ -83,49 +100,38 @@ rigidize (part : parts) acc state =
     Define label
       | Just _ <- Offset.rigid $ offsets state -> rigidize parts acc state {definitions = HashMap.insert label (offsets state) $ definitions state}
       | otherwise -> rigidize parts (appendPart acc part) state {definitions = HashMap.insert label (offsets state) $ definitions state}
-    Use label labelUse
-      | Just o <- Offset.rigid $ offsets state -> rigidize parts acc state {rigidUses = HashMap.insertWith (<>) label [(o, labelUse)] $ rigidUses state}
-      | otherwise -> rigidize parts (appendPart acc part) state
-    FlexibleUse label uses ->
-      case selectFlexibleUse label uses of
-        Left Nothing -> Nothing
-        Left (Just uses') -> rigidize parts (appendPart acc $ FlexibleUse label uses') state {offsets = flexibleUsesOffset uses' <> offsets state}
-        Right (builder, selectedUse) -> rigidize (Rigid builder : Use label selectedUse : parts) acc state
-  where
-    flexibleUsesOffset :: NonEmpty (ArrayBuilder s, a) -> Offset.Flexible
-    flexibleUsesOffset uses = Offset.Flexible minSize maxSize
-      where
-        (Min minSize, Max maxSize) = foldMap (\(builder, _) -> (Min $ ArrayBuilder.size builder, Max $ ArrayBuilder.size builder)) uses
-
-    selectFlexibleUse ::
-      Label ->
-      NonEmpty (ArrayBuilder s, LabelUse) ->
-      Either (Maybe (NonEmpty (ArrayBuilder s, LabelUse))) (ArrayBuilder s, LabelUse)
-    selectFlexibleUse label uses =
+    Use label labelUse ->
       case HashMap.lookup label $ definitions state of
-        Nothing -> Left $ Just uses
-        Just definition -> do
-          let possiblyValidUses = NonEmpty.filter (possiblyValid definition . snd) uses
-          case filter (alwaysValid definition . snd) possiblyValidUses of
-            [] -> case possiblyValidUses of
-              [] -> Left Nothing
-              [possiblyValidUse] -> Right possiblyValidUse
-              possiblyValidUse : possiblyValidUses' -> Left $ Just $ possiblyValidUse NonEmpty.:| possiblyValidUses'
-            selectedUse : _ -> Right selectedUse
-
+        Nothing -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
+        Just definition
+          | alwaysValid definition labelUse
+            , Just o <- Offset.rigid $ offsets state ->
+            rigidize parts acc state {rigidUses = HashMap.insertWith (<>) label [(o, labelUse)] $ rigidUses state}
+          | possiblyValid definition labelUse -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
+          | otherwise -> Nothing
+    Flexible parts1 parts2 ->
+      case rigidize parts1 acc state {valid = mempty} of
+        Nothing -> rigidize parts2 acc state
+        Just (parts1', state1@State {valid = Possibly}) ->
+          case rigidize parts2 acc state of
+            Nothing -> rigidize parts (appendParts acc parts1') state1
+            Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state}
+        Just (parts1', state1@State {valid = Always}) ->
+          rigidize parts (appendParts acc parts1') state1 {valid = valid state}
+  where
     alwaysValid :: Offset.Flexible -> LabelUse -> Bool
-    alwaysValid definition LabelUse {size = useSize, positionOffset = useOffset} =
+    alwaysValid definition LabelUse {size = useSize} =
       minUseBound <= relativeMin && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets definition $ offset useOffset $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets definition $ offsets state
         (minUseBound, maxUseBound) = useBounds useSize
 
     possiblyValid :: Offset.Flexible -> LabelUse -> Bool
-    possiblyValid definition LabelUse {size = useSize, positionOffset = useOffset} =
+    possiblyValid definition LabelUse {size = useSize} =
       minUseBound <= relativeMin && relativeMin <= maxUseBound
         || minUseBound <= relativeMax && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets definition $ offset useOffset $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets definition $ offsets state
         (minUseBound, maxUseBound) = useBounds useSize
 
     relativeOffsets (Offset.Flexible defMin defMax) (Offset.Flexible useMin useMax) =
@@ -146,23 +152,33 @@ selectAlternative alternative (part : parts) acc state =
     Rigid builder -> selectAlternative alternative parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
     Define _ -> error "selectAlternative: unexpected Define"
     Use _ _ -> error "selectAlternative: unexpected Use"
-    FlexibleUse label uses -> do
-      let (builder, selectedUse) = uses NonEmpty.!! alternative
-      rigidize (Rigid builder : Use label selectedUse : parts) acc state
+    Flexible parts0 parts1 ->
+      case alternative of
+        0 -> rigidize (parts0 <> parts) acc state
+        1 -> rigidize (parts1 <> parts) acc state
+        _ -> error "selectAlternative: no such alternative"
 
-toArrayBuilder :: Builder s -> (ArrayBuilder s, HashMap Label Offset, HashMap Label [(Offset, LabelUse)])
-toArrayBuilder (Builder initialParts) = go (Foldable.toList initialParts) State {offsets = mempty, definitions = mempty, rigidUses = mempty}
+toArrayBuilder :: Builder s -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
+toArrayBuilder (Builder initialParts) =
+  go
+    (Foldable.toList initialParts)
+    State
+      { offsets = mempty
+      , definitions = mempty
+      , rigidUses = mempty
+      , valid = mempty
+      }
   where
-    go :: [Part s] -> State -> (ArrayBuilder s, HashMap Label Offset, HashMap Label [(Offset, LabelUse)])
-    go [] state = (mempty, (\(Offset.Flexible o _) -> o) <$> definitions state, rigidUses state)
-    go [Rigid builder] state = (builder, (\(Offset.Flexible o _) -> o) <$> definitions state, rigidUses state)
-    go parts state = case rigidize parts mempty state {offsets = mempty} of
+    go :: [Part s] -> State -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
+    go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
+    go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
+    go parts state = case rigidize parts mempty state {offsets = mempty, valid = mempty} of
       Nothing -> error "toBuilder: impossible"
       Just (parts', state')
         | offsets state == offsets state' ->
           -- We're not making any progress: see if selecting alternatives in
           -- the first flexible use gets us unstuck.
-          case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty} | alternative <- [0 ..]] of
+          case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty, valid = mempty} | alternative <- [0 ..]] of
             [] -> error "toBuilder: no alternative works"
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'

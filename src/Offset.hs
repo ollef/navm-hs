@@ -16,6 +16,9 @@ rigid (Flexible o1 o2)
   | o1 == o2 = Just o1
   | otherwise = Nothing
 
+choice :: Flexible -> Flexible -> Flexible
+choice (Flexible min1 max1) (Flexible min2 max2) = Flexible (min min1 min2) (max max1 max2)
+
 instance Semigroup Flexible where
   Flexible o1 o1' <> Flexible o2 o2' = Flexible (o1 <> o2) (o1' <> o2')
 
