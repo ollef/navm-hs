@@ -4,6 +4,7 @@
 module Main where
 
 import Control.Monad
+import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.ByteString.Lazy.Char8 as Char8
@@ -16,6 +17,8 @@ import System.IO.Temp (withTempFile)
 import System.Process (callProcess)
 import Target.X86.Assembler
 import Target.X86.Assembly
+import qualified Target.X86.MachineCode as MachineCode
+import qualified Target.X86.MachineCode.Builder as MachineCode.Builder
 import Target.X86.Printer
 import Target.X86.Random
 
@@ -69,7 +72,8 @@ matchGNUAssembler instructions = do
             ByteString.Lazy.writeFile assemblyFileName assemblyCode
             callProcess "as" [assemblyFileName, "-o", objectFileName]
             callProcess "objcopy" ["-O", "binary", "-j", ".text", objectFileName, binaryFileName]
-            ByteString.Lazy.readFile binaryFileName
-  let assembledInstructions = buildMachineCode $ assembleInstructions instructions
+            ByteString.readFile binaryFileName
+  let assembledInstructions = MachineCode.Builder.run $ assembleInstructions instructions
   Hedgehog.annotate $ Char8.unpack assemblyCode
-  assembledInstructions Hedgehog.=== MachineCode gnuAssembledInstructions
+  assembledInstructionsBS <- Hedgehog.evalIO $ MachineCode.toByteString assembledInstructions
+  assembledInstructionsBS Hedgehog.=== gnuAssembledInstructions
