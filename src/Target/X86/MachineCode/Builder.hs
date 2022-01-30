@@ -22,6 +22,7 @@ import Data.Maybe
 import Data.Semigroup
 import Data.Tsil (Tsil)
 import qualified Data.Tsil as Tsil
+import Data.Word
 import Offset (Offset, offset)
 import qualified Offset
 import Prelude hiding (max, min)
@@ -165,3 +166,27 @@ toArrayBuilder (Builder initialParts) = go (Foldable.toList initialParts) State 
             [] -> error "toBuilder: no alternative works"
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
+
+word8 :: Word8 -> Builder s
+word8 = Builder . pure . Rigid . ArrayBuilder.word8
+
+word16 :: Word16 -> Builder s
+word16 = Builder . pure . Rigid . ArrayBuilder.word16
+
+word32 :: Word32 -> Builder s
+word32 = Builder . pure . Rigid . ArrayBuilder.word32
+
+word64 :: Word64 -> Builder s
+word64 = Builder . pure . Rigid . ArrayBuilder.word64
+
+int8 :: Int8 -> Builder s
+int8 = Builder . pure . Rigid . ArrayBuilder.int8
+
+int16 :: Int16 -> Builder s
+int16 = Builder . pure . Rigid . ArrayBuilder.int16
+
+int32 :: Int32 -> Builder s
+int32 = Builder . pure . Rigid . ArrayBuilder.int32
+
+int64 :: Int64 -> Builder s
+int64 = Builder . pure . Rigid . ArrayBuilder.int64
