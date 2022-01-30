@@ -23,6 +23,7 @@ import qualified Data.Tsil as Tsil
 import Data.Word
 import Offset (Offset, offset)
 import qualified Offset
+import Target.X86.MachineCode
 import Prelude hiding (max, min)
 import qualified Prelude
 
@@ -182,6 +183,21 @@ toArrayBuilder (Builder initialParts) =
             [] -> error "toBuilder: no alternative works"
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
+
+toMachineCode :: (forall s. Builder s) -> MachineCode
+toMachineCode builder =
+  MachineCode $
+    ArrayBuilder.run $
+      ArrayBuilder.overlays $ instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
+  where
+    (instructions, labels) = toArrayBuilder builder
+    useBuilder definition uses =
+      ArrayBuilder.overlays
+        [ ArrayBuilder.skip (useOffset + writeOffset use) <> case size use of
+          Int8 -> ArrayBuilder.int8 $ fromIntegral $ definition - useOffset
+          Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition - useOffset
+        | (useOffset, use) <- uses
+        ]
 
 word8 :: Word8 -> Builder s
 word8 = Builder . pure . Rigid . ArrayBuilder.word8
