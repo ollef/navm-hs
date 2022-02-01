@@ -73,11 +73,11 @@ sameOperands (Immediate imm1) (Immediate imm2)
 sameOperands (Immediate _) _ = [Unsatisifable]
 sameOperands (Register reg1) (Register reg2) = sameRegisters reg1 reg2
 sameOperands (Register _) _ = [Unsatisifable]
-sameOperands (Address addr1) (Address addr2) = sameAddresses addr1 addr2
-sameOperands (Address _) _ = [Unsatisifable]
+sameOperands (Memory addr1) (Memory addr2) = sameAddresses addr1 addr2
+sameOperands (Memory _) _ = [Unsatisifable]
 
 sameAddresses :: Eq reg => Address reg -> Address reg -> [Constraint reg]
-sameAddresses (Address' base1 index1 imm1) (Address' base2 index2 imm2)
+sameAddresses (Address base1 index1 imm1) (Address base2 index2 imm2)
   | imm1 == imm2 =
     case (base1, base2) of
       (Nothing, Nothing) -> []

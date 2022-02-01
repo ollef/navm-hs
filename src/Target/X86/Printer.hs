@@ -6,6 +6,8 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import Data.List (intersperse)
 import Data.Maybe
+import Label (Label)
+import qualified Label
 import Target.X86.Assembly
 
 printInstructions :: [Instruction Register] -> Builder
@@ -25,9 +27,13 @@ printInstruction instruction =
 printOperand :: Operand Register -> Builder
 printOperand operand =
   case operand of
-    Immediate i -> Builder.int64Dec i
+    Immediate (Constant i) -> Builder.int64Dec i
+    Immediate (Label l) -> printLabel l
     Register r -> printRegister r
-    Address a -> printAddress a
+    Memory a -> printAddress a
+
+printLabel :: Label -> Builder
+printLabel (Label.Label l) = ".L" <> Builder.byteString l
 
 printRegister :: Register -> Builder
 printRegister register =
@@ -50,7 +56,7 @@ printRegister register =
     R15 -> "r15"
 
 printAddress :: Address Register -> Builder
-printAddress (Address' maybeBase maybeIndex disp) =
+printAddress (Address maybeBase maybeIndex disp) =
   case addends of
     [] -> "qword ptr [0]"
     _ -> "qword ptr [" <> mconcat (intersperse "+" addends) <> "]"
@@ -68,5 +74,6 @@ printAddress (Address' maybeBase maybeIndex disp) =
           Scale2 -> "*2"
           Scale4 -> "*4"
           Scale8 -> "*8"
-    printDisplacement 0 = Nothing
-    printDisplacement d = Just $ Builder.int32Dec d
+    printDisplacement (Constant 0) = Nothing
+    printDisplacement (Constant d) = Just $ Builder.int32Dec d
+    printDisplacement (Label l) = Just $ printLabel l

@@ -26,35 +26,35 @@ generateInstruction =
 generateOperand :: Maybe (Operand Register) -> Gen (Operand Register)
 generateOperand dst =
   Gen.choice $
-    [ Immediate <$> generateImmediate
+    [ Immediate . Constant <$> generateImmediate
     , Register <$> generateRegister
     ]
       <> case dst of
-        Just (Address _) -> []
-        _ -> [Address <$> generateAddress]
+        Just (Memory _) -> []
+        _ -> [Memory <$> generateAddress]
 
 generateRegisterOrAddressOperand :: Gen (Operand Register)
 generateRegisterOrAddressOperand =
   Gen.choice
     [ Register <$> generateRegister
-    , Address <$> generateAddress
+    , Memory <$> generateAddress
     ]
 
 generateMovOperand :: Operand Register -> Gen (Operand Register)
 generateMovOperand dst =
   Gen.choice $
-    [ Immediate <$> generateMovImmediate dst
+    [ Immediate . Constant <$> generateMovImmediate dst
     , Register <$> generateRegister
     ]
       <> case dst of
-        Address _ -> []
-        _ -> [Address <$> generateAddress]
+        Memory _ -> []
+        _ -> [Memory <$> generateAddress]
 
 generateDestinationOperand :: Gen (Operand Register)
 generateDestinationOperand =
   Gen.choice
     [ Register <$> generateRegister
-    , Address <$> generateAddress
+    , Memory <$> generateAddress
     ]
 
 generateImmediate :: Gen Int64
@@ -71,11 +71,11 @@ generateRegister = Gen.enumBounded
 
 generateAddress :: Gen (Address Register)
 generateAddress =
-  Address'
+  Address
     <$> optional generateRegister
     <*> optional generateScaledIndexRegister
     <*> generateDisplacement
   where
-    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
-    generateDisplacement = Gen.int32 Range.linearBounded
     generateIndexRegister = Gen.filter (/= RSP) generateRegister
+    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
+    generateDisplacement = Constant <$> Gen.int32 Range.linearBounded

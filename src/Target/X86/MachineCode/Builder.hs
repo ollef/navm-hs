@@ -9,18 +9,17 @@ module Target.X86.MachineCode.Builder where
 import ArrayBuilder (ArrayBuilder)
 import qualified ArrayBuilder
 import Control.Applicative
-import Data.ByteString.Internal as ByteString.Internal
 import Data.Foldable
 import qualified Data.Foldable as Foldable
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
-import Data.Hashable
 import Data.Int
 import Data.Maybe
 import Data.Semigroup
 import Data.Tsil (Tsil)
 import qualified Data.Tsil as Tsil
 import Data.Word
+import Label
 import Offset (Offset, offset)
 import qualified Offset
 import Target.X86.MachineCode
@@ -35,9 +34,6 @@ data Part s
   | Flexible [Part s] [Part s]
   | Define !Label
   | Use !Label !LabelUse
-
-newtype Label = Label ByteString
-  deriving (Eq, Show, Hashable)
 
 data LabelUseSize = Int8 | Int32
   deriving (Show, Eq, Ord)
