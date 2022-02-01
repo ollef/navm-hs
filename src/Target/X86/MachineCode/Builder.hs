@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -9,6 +10,7 @@ module Target.X86.MachineCode.Builder where
 import ArrayBuilder (ArrayBuilder)
 import qualified ArrayBuilder
 import Control.Applicative
+import Data.Coerce
 import Data.Foldable
 import qualified Data.Foldable as Foldable
 import Data.HashMap.Lazy (HashMap)
@@ -45,6 +47,7 @@ useSizeBytes Int32 = 4
 data LabelUse = LabelUse
   { writeOffset :: !Offset
   , size :: !LabelUseSize
+  , displacement :: !Int
   }
   deriving (Show)
 
@@ -67,9 +70,9 @@ appendParts = foldl' appendPart
 define :: Label -> Builder s
 define label = Builder $ pure $ Define label
 
-useRelativeToEnd :: Label -> LabelUseSize -> Builder s
-useRelativeToEnd label labelSize =
-  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = - byteSize, size = labelSize}]
+useRelativeToEnd :: Label -> LabelUseSize -> Int -> Builder s
+useRelativeToEnd label labelSize displacement =
+  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = - byteSize, size = labelSize, displacement}]
   where
     byteSize = useSizeBytes labelSize
 
@@ -117,18 +120,18 @@ rigidize (part : parts) acc state =
           rigidize parts (appendParts acc parts1') state1 {valid = valid state}
   where
     alwaysValid :: Offset.Flexible -> LabelUse -> Bool
-    alwaysValid definition LabelUse {size = useSize} =
+    alwaysValid definition LabelUse {size = useSize, displacement} =
       minUseBound <= relativeMin && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets definition $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets definition $ Offset.offset (coerce displacement) $ offsets state
         (minUseBound, maxUseBound) = useBounds useSize
 
     possiblyValid :: Offset.Flexible -> LabelUse -> Bool
-    possiblyValid definition LabelUse {size = useSize} =
+    possiblyValid definition LabelUse {size = useSize, displacement} =
       minUseBound <= relativeMin && relativeMin <= maxUseBound
         || minUseBound <= relativeMax && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets definition $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets definition $ Offset.offset (coerce displacement) $ offsets state
         (minUseBound, maxUseBound) = useBounds useSize
 
     relativeOffsets (Offset.Flexible defMin defMax) (Offset.Flexible useMin useMax) =
