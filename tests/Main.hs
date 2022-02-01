@@ -53,7 +53,7 @@ prop_x86Assembler :: Hedgehog.Property
 prop_x86Assembler =
   Hedgehog.withTests 1000 $
     Hedgehog.property $ do
-      instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) generateInstruction
+      instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) $ generateInstruction []
       matchGNUAssembler instructions
 
 matchGNUAssembler :: [Instruction Register] -> Hedgehog.PropertyT IO ()

@@ -27,8 +27,7 @@ printInstruction instruction =
 printOperand :: Operand Register -> Builder
 printOperand operand =
   case operand of
-    Immediate (Constant i) -> Builder.int64Dec i
-    Immediate (Label l) -> printLabel l
+    Immediate i -> Builder.int64Dec i
     Register r -> printRegister r
     Memory a -> printAddress a
 
@@ -56,7 +55,7 @@ printRegister register =
     R15 -> "r15"
 
 printAddress :: Address Register -> Builder
-printAddress (Address maybeBase maybeIndex disp) =
+printAddress (Address maybeBase maybeIndex maybeLabel disp) =
   case addends of
     [] -> "qword ptr [0]"
     _ -> "qword ptr [" <> mconcat (intersperse "+" addends) <> "]"
@@ -65,6 +64,7 @@ printAddress (Address maybeBase maybeIndex disp) =
       catMaybes
         [ printRegister <$> maybeBase
         , printScaledIndex <$> maybeIndex
+        , printLabel <$> maybeLabel
         , printDisplacement disp
         ]
     printScaledIndex (index, scale) =
@@ -74,6 +74,5 @@ printAddress (Address maybeBase maybeIndex disp) =
           Scale2 -> "*2"
           Scale4 -> "*4"
           Scale8 -> "*8"
-    printDisplacement (Constant 0) = Nothing
-    printDisplacement (Constant d) = Just $ Builder.int32Dec d
-    printDisplacement (Label l) = Just $ printLabel l
+    printDisplacement 0 = Nothing
+    printDisplacement d = Just $ Builder.int32Dec d

@@ -28,15 +28,12 @@ data Instruction reg
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Operand reg
-  = Immediate !(Immediate Int64)
+  = Immediate !Int64
   | Register !reg
   | Memory !(Address reg)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-data Immediate a = Constant !a | Label !Label
-  deriving (Show, Eq)
-
-data Address reg = Address !(Maybe reg) !(Maybe (reg, Scale)) !(Immediate Int32)
+data Address reg = Address !(Maybe reg) !(Maybe (reg, Scale)) !(Maybe Label) !Int32
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
@@ -81,7 +78,7 @@ scaledRegister reg n
   | otherwise = Nothing
 
 instance Num (Operand reg) where
-  fromInteger = Immediate . Constant . fromInteger
+  fromInteger = Immediate . fromInteger
   _ + _ = error "not implemented"
   _ - _ = error "not implemented"
   _ * _ = error "not implemented"
@@ -89,9 +86,9 @@ instance Num (Operand reg) where
   signum = error "not implemented"
 
 instance Ord reg => Num (Address reg) where
-  fromInteger i = Address Nothing Nothing $ Constant $ fromInteger i
-  Address base1 index1 disp1 + Address base2 index2 disp2 =
-    Address base index disp
+  fromInteger i = Address Nothing Nothing Nothing $ fromInteger i
+  Address base1 index1 label1 disp1 + Address base2 index2 label2 disp2 =
+    Address base index label disp
     where
       regScales =
         Map.fromListWith (+) $
@@ -111,18 +108,18 @@ instance Ord reg => Num (Address reg) where
           [(reg1, toScale -> Just scale1), (reg2, 1)] -> (Just reg2, Just (reg1, scale1))
           [_, _] -> error "can only scale one register in address operand"
           _ : _ : _ : _ -> error "too many registers in address operand"
-      disp = case (disp1, disp2) of
-        (d, Constant 0) -> d
-        (Constant 0, d) -> d
-        (Constant i, Constant j) -> Constant $ i + j
-        _ -> error "too many labels in address operand"
-  negate (Address Nothing Nothing (Constant d)) = Address Nothing Nothing $ Constant $ negate d
+      label = case (label1, label2) of
+        (Nothing, l) -> l
+        (l, Nothing) -> l
+        (Just _, Just _) -> error "too many labels in address operand"
+      disp = disp1 + disp2
+  negate (Address Nothing Nothing Nothing d) = Address Nothing Nothing Nothing $ negate d
   negate _ = error "can't negate address operand based on register(s)"
-  Address Nothing Nothing (Constant 1) * a = a
-  Address Nothing Nothing (Constant 0) * _ = 0
-  a * Address Nothing Nothing (Constant 1) = a
-  _ * Address Nothing Nothing (Constant 0) = 0
-  Address base1 index1 (Constant 0) * Address Nothing Nothing (Constant disp) = Address base index $ Constant 0
+  Address Nothing Nothing Nothing 1 * a = a
+  Address Nothing Nothing Nothing 0 * _ = 0
+  a * Address Nothing Nothing Nothing 1 = a
+  _ * Address Nothing Nothing Nothing 0 = 0
+  Address base1 index1 Nothing 0 * Address Nothing Nothing Nothing disp = Address base index Nothing 0
     where
       regScales =
         Map.fromListWith (+) $
@@ -135,8 +132,8 @@ instance Ord reg => Num (Address reg) where
         [(reg, scale)]
           | Just result <- scaledRegister reg (scale * disp) -> result
         _ -> error "can't multiply address operands"
-  Address Nothing Nothing (Constant disp) * Address base2 index2 (Constant 0) =
-    Address base index $ Constant 0
+  Address Nothing Nothing Nothing disp * Address base2 index2 Nothing 0 =
+    Address base index Nothing 0
     where
       regScales =
         Map.fromListWith (+) $
@@ -166,7 +163,7 @@ type instance RegisterType [a] = RegisterType a
 type instance RegisterType (Const a b) = RegisterType a
 
 instance reg ~ Register => FromRegister (Address reg) where
-  fromRegister r = Address (Just r) Nothing $ Constant 0
+  fromRegister r = Address (Just r) Nothing Nothing 0
 
 instance reg ~ Register => FromRegister (Operand reg) where
   fromRegister = Register

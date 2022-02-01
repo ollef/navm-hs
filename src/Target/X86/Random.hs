@@ -3,6 +3,7 @@
 module Target.X86.Random where
 
 import Control.Applicative
+import Control.Monad
 import Data.Int
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
@@ -14,14 +15,14 @@ generateInstruction :: [Label] -> Gen (Instruction Register)
 generateInstruction labels =
   Gen.choice
     [ do
-        dst <- generateDestinationOperand
+        dst <- generateDestinationOperand labels
         src <- generateOperand labels $ Just dst
         pure $ Add dst dst src
-    , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand
+    , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand labels
     , Call <$> generateOperand labels Nothing
     , pure Ret
     , do
-        dst <- generateDestinationOperand
+        dst <- generateDestinationOperand labels
         src <- generateMovOperand labels dst
         pure $ Mov dst src
     ]
@@ -29,67 +30,62 @@ generateInstruction labels =
 generateOperand :: [Label] -> Maybe (Operand Register) -> Gen (Operand Register)
 generateOperand labels dst =
   Gen.choice $
-    [ Immediate <$> generateImmediate labels
+    [ Immediate <$> generateImmediate
     , Register <$> generateRegister
     ]
       <> case dst of
         Just (Memory _) -> []
-        _ -> [Memory <$> generateAddress]
+        _ -> [Memory <$> generateAddress labels]
 
-generateRegisterOrAddressOperand :: Gen (Operand Register)
-generateRegisterOrAddressOperand =
+generateRegisterOrAddressOperand :: [Label] -> Gen (Operand Register)
+generateRegisterOrAddressOperand labels =
   Gen.choice
     [ Register <$> generateRegister
-    , Memory <$> generateAddress
+    , Memory <$> generateAddress labels
     ]
 
 generateMovOperand :: [Label] -> Operand Register -> Gen (Operand Register)
 generateMovOperand labels dst =
   Gen.choice $
-    [ Immediate <$> generateMovImmediate labels dst
+    [ Immediate <$> generateMovImmediate dst
     , Register <$> generateRegister
     ]
       <> case dst of
         Memory _ -> []
-        _ -> [Memory <$> generateAddress]
+        _ -> [Memory <$> generateAddress labels]
 
-generateDestinationOperand :: Gen (Operand Register)
-generateDestinationOperand =
+generateDestinationOperand :: [Label] -> Gen (Operand Register)
+generateDestinationOperand labels =
   Gen.choice
     [ Register <$> generateRegister
-    , Memory <$> generateAddress
+    , Memory <$> generateAddress labels
     ]
 
-generateImmediate :: Num n => [Label] -> Gen (Immediate n)
-generateImmediate labels =
-  Gen.choice $
-    [ Constant . fromIntegral <$> Gen.int32 Range.linearBounded
-    ]
-      <> (fmap Label <$> generateLabel labels)
+generateImmediate :: Gen Int64
+generateImmediate =
+  fromIntegral <$> Gen.int32 Range.linearBounded
 
-generateMovImmediate :: [Label] -> Operand Register -> Gen (Immediate Int64)
-generateMovImmediate labels dst =
+generateMovImmediate :: Operand Register -> Gen Int64
+generateMovImmediate dst =
   case dst of
-    Register _ ->
-      Gen.choice $
-        [Constant <$> Gen.int64 Range.linearBounded]
-          <> (fmap Label <$> generateLabel labels)
-    _ -> generateImmediate labels
+    Register _ -> Gen.int64 Range.linearBounded
+    _ -> generateImmediate
 
-generateLabel :: [Label] -> [Gen Label]
-generateLabel [] = []
-generateLabel labels = [Gen.element labels]
+generateLabel :: Alternative f => [Label] -> f (Gen Label)
+generateLabel [] = empty
+generateLabel labels = pure $ Gen.element labels
 
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
 
-generateAddress :: Gen (Address Register)
-generateAddress =
+generateAddress :: [Label] -> Gen (Address Register)
+generateAddress labels =
   Address
     <$> optional generateRegister
     <*> optional generateScaledIndexRegister
+    <*> fmap join (optional $ sequence $ generateLabel labels)
     <*> generateDisplacement
   where
     generateIndexRegister = Gen.filter (/= RSP) generateRegister
     generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
-    generateDisplacement = Constant <$> Gen.int32 Range.linearBounded
+    generateDisplacement = Gen.int32 Range.linearBounded
