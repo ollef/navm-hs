@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Target.X86.Random where
 
 import Control.Applicative
@@ -5,28 +7,29 @@ import Data.Int
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Label (Label)
 import Target.X86.Assembly
 
-generateInstruction :: Gen (Instruction Register)
-generateInstruction =
+generateInstruction :: [Label] -> Gen (Instruction Register)
+generateInstruction labels =
   Gen.choice
     [ do
         dst <- generateDestinationOperand
-        src <- generateOperand $ Just dst
+        src <- generateOperand labels $ Just dst
         pure $ Add dst dst src
     , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand
-    , Call <$> generateOperand Nothing
+    , Call <$> generateOperand labels Nothing
     , pure Ret
     , do
         dst <- generateDestinationOperand
-        src <- generateMovOperand dst
+        src <- generateMovOperand labels dst
         pure $ Mov dst src
     ]
 
-generateOperand :: Maybe (Operand Register) -> Gen (Operand Register)
-generateOperand dst =
+generateOperand :: [Label] -> Maybe (Operand Register) -> Gen (Operand Register)
+generateOperand labels dst =
   Gen.choice $
-    [ Immediate . Constant <$> generateImmediate
+    [ Immediate <$> generateImmediate labels
     , Register <$> generateRegister
     ]
       <> case dst of
@@ -40,10 +43,10 @@ generateRegisterOrAddressOperand =
     , Memory <$> generateAddress
     ]
 
-generateMovOperand :: Operand Register -> Gen (Operand Register)
-generateMovOperand dst =
+generateMovOperand :: [Label] -> Operand Register -> Gen (Operand Register)
+generateMovOperand labels dst =
   Gen.choice $
-    [ Immediate . Constant <$> generateMovImmediate dst
+    [ Immediate <$> generateMovImmediate labels dst
     , Register <$> generateRegister
     ]
       <> case dst of
@@ -57,14 +60,25 @@ generateDestinationOperand =
     , Memory <$> generateAddress
     ]
 
-generateImmediate :: Gen Int64
-generateImmediate = fromIntegral <$> Gen.int32 Range.linearBounded
+generateImmediate :: Num n => [Label] -> Gen (Immediate n)
+generateImmediate labels =
+  Gen.choice $
+    [ Constant . fromIntegral <$> Gen.int32 Range.linearBounded
+    ]
+      <> (fmap Label <$> generateLabel labels)
 
-generateMovImmediate :: Operand Register -> Gen Int64
-generateMovImmediate dst =
+generateMovImmediate :: [Label] -> Operand Register -> Gen (Immediate Int64)
+generateMovImmediate labels dst =
   case dst of
-    Register _ -> Gen.int64 Range.linearBounded
-    _ -> generateImmediate
+    Register _ ->
+      Gen.choice $
+        [Constant <$> Gen.int64 Range.linearBounded]
+          <> (fmap Label <$> generateLabel labels)
+    _ -> generateImmediate labels
+
+generateLabel :: [Label] -> [Gen Label]
+generateLabel [] = []
+generateLabel labels = [Gen.element labels]
 
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
