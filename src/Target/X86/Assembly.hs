@@ -16,7 +16,7 @@ import Data.Kind
 import qualified Data.Map as Map
 import Data.Maybe
 import GHC.Exts
-import Label
+import Label (Label)
 import Target.X86.Register as X
 
 data Instruction reg
@@ -90,8 +90,8 @@ instance Num (Operand reg) where
 
 instance Ord reg => Num (Address reg) where
   fromInteger i = Address Nothing Nothing $ Constant $ fromInteger i
-  Address base1 index1 (Constant disp1) + Address base2 index2 (Constant disp2) =
-    Address base index $ Constant $ disp1 + disp2
+  Address base1 index1 disp1 + Address base2 index2 disp2 =
+    Address base index disp
     where
       regScales =
         Map.fromListWith (+) $
@@ -111,6 +111,11 @@ instance Ord reg => Num (Address reg) where
           [(reg1, toScale -> Just scale1), (reg2, 1)] -> (Just reg2, Just (reg1, scale1))
           [_, _] -> error "can only scale one register in address operand"
           _ : _ : _ : _ -> error "too many registers in address operand"
+      disp = case (disp1, disp2) of
+        (d, Constant 0) -> d
+        (Constant 0, d) -> d
+        (Constant i, Constant j) -> Constant $ i + j
+        _ -> error "too many labels in address operand"
   negate (Address Nothing Nothing (Constant d)) = Address Nothing Nothing $ Constant $ negate d
   negate _ = error "can't negate address operand based on register(s)"
   Address Nothing Nothing (Constant 1) * a = a
