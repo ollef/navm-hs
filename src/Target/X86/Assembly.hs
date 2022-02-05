@@ -34,7 +34,13 @@ data Operand reg
   | Memory !(Address reg)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-data Address reg = Address !(Maybe reg) !(Maybe (reg, Scale)) !(Maybe Label) !Int32
+data Address reg
+  = Address !(Base reg) !(Maybe Label) !Int32
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
+data Base reg
+  = Absolute !(Maybe reg) !(Maybe (reg, Scale))
+  | Relative
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Scale = Scale1 | Scale2 | Scale4 | Scale8
@@ -86,10 +92,10 @@ instance Num (Operand reg) where
   abs = error "not implemented"
   signum = error "not implemented"
 
-instance Ord reg => Num (Address reg) where
-  fromInteger i = Address Nothing Nothing Nothing $ fromInteger i
-  Address base1 index1 label1 disp1 + Address base2 index2 label2 disp2 =
-    Address base index label disp
+instance Ord reg => Semigroup (Base reg) where
+  Absolute Nothing Nothing <> Relative = Relative
+  Relative <> Absolute Nothing Nothing = Relative
+  Absolute base1 index1 <> Absolute base2 index2 = Absolute base index
     where
       regScales =
         Map.fromListWith (+) $
@@ -109,18 +115,28 @@ instance Ord reg => Num (Address reg) where
           [(reg1, toScale -> Just scale1), (reg2, 1)] -> (Just reg2, Just (reg1, scale1))
           [_, _] -> error "can only scale one register in address operand"
           _ : _ : _ : _ -> error "too many registers in address operand"
+  _ <> _ = error "Can't add base addresses"
+
+instance Ord reg => Monoid (Base reg) where
+  mempty = Absolute Nothing Nothing
+
+instance Ord reg => Num (Address reg) where
+  fromInteger i = Address mempty Nothing $ fromInteger i
+  Address base1 label1 disp1 + Address base2 label2 disp2 =
+    Address (base1 <> base2) label disp
+    where
       label = case (label1, label2) of
         (Nothing, l) -> l
         (l, Nothing) -> l
         (Just _, Just _) -> error "too many labels in address operand"
       disp = disp1 + disp2
-  negate (Address Nothing Nothing Nothing d) = Address Nothing Nothing Nothing $ negate d
+  negate (Address (Absolute Nothing Nothing) Nothing d) = Address (Absolute Nothing Nothing) Nothing $ negate d
   negate _ = error "can't negate address operand based on register(s)"
-  Address Nothing Nothing Nothing 1 * a = a
-  Address Nothing Nothing Nothing 0 * _ = 0
-  a * Address Nothing Nothing Nothing 1 = a
-  _ * Address Nothing Nothing Nothing 0 = 0
-  Address base1 index1 Nothing 0 * Address Nothing Nothing Nothing disp = Address base index Nothing 0
+  Address (Absolute Nothing Nothing) Nothing 1 * a = a
+  Address (Absolute Nothing Nothing) Nothing 0 * _ = 0
+  a * Address (Absolute Nothing Nothing) Nothing 1 = a
+  _ * Address (Absolute Nothing Nothing) Nothing 0 = 0
+  Address (Absolute base1 index1) Nothing 0 * Address (Absolute Nothing Nothing) Nothing disp = Address (Absolute base index) Nothing 0
     where
       regScales =
         Map.fromListWith (+) $
@@ -133,8 +149,8 @@ instance Ord reg => Num (Address reg) where
         [(reg, scale)]
           | Just result <- scaledRegister reg (scale * disp) -> result
         _ -> error "can't multiply address operands"
-  Address Nothing Nothing Nothing disp * Address base2 index2 Nothing 0 =
-    Address base index Nothing 0
+  Address (Absolute Nothing Nothing) Nothing disp * Address (Absolute base2 index2) Nothing 0 =
+    Address (Absolute base index) Nothing 0
     where
       regScales =
         Map.fromListWith (+) $
@@ -164,7 +180,7 @@ type instance RegisterType [a] = RegisterType a
 type instance RegisterType (Const a b) = RegisterType a
 
 instance reg ~ Register => FromRegister (Address reg) where
-  fromRegister r = Address (Just r) Nothing Nothing 0
+  fromRegister r = Address (Absolute (Just r) Nothing) Nothing 0
 
 instance reg ~ Register => FromRegister (Operand reg) where
   fromRegister = Register
@@ -177,6 +193,9 @@ instance FromAddress (Address reg) where
 
 instance FromAddress (Operand reg) where
   fromAddress = Memory
+
+rip :: FromAddress a => a
+rip = fromAddress $ Address Relative Nothing 0
 
 instance IsList (Operand reg) where
   type Item (Operand reg) = Address reg

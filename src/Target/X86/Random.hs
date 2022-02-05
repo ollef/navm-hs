@@ -88,11 +88,18 @@ generateRegister = Gen.enumBounded
 generateAddress :: [Label] -> Gen (Address Register)
 generateAddress labels =
   Address
-    <$> optional generateRegister
-    <*> optional generateScaledIndexRegister
+    <$> generateBase
     <*> fmap join (optional $ sequence $ generateLabel labels)
     <*> generateDisplacement
   where
-    generateIndexRegister = Gen.filter (/= RSP) generateRegister
-    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
     generateDisplacement = Gen.int32 Range.linearBounded
+
+generateBase :: Gen (Base Register)
+generateBase =
+  Gen.choice
+    [ Absolute <$> optional generateRegister <*> optional generateScaledIndexRegister
+    , pure Relative
+    ]
+  where
+    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
+    generateIndexRegister = Gen.filter (/= RSP) generateRegister

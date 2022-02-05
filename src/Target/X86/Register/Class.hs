@@ -79,14 +79,20 @@ sameOperands (Memory addr1) (Memory addr2) = sameAddresses addr1 addr2
 sameOperands (Memory _) _ = [Unsatisifable]
 
 sameAddresses :: Eq reg => Address reg -> Address reg -> [Constraint reg]
-sameAddresses (Address base1 index1 label1 imm1) (Address base2 index2 label2 imm2)
+sameAddresses (Address base1 label1 imm1) (Address base2 label2 imm2)
   | imm1 == imm2 && label1 == label2 =
-    case (base1, base2) of
-      (Nothing, Nothing) -> []
-      (Just reg1, Just reg2) -> sameRegisters reg1 reg2
-      _ -> [Unsatisifable]
-      <> case (index1, index2) of
-        (Nothing, Nothing) -> []
-        (Just (reg1, scale1), Just (reg2, scale2)) | scale1 == scale2 -> sameRegisters reg1 reg2
-        _ -> [Unsatisifable]
+    sameBases base1 base2
   | otherwise = [Unsatisifable]
+
+sameBases :: Eq reg => Base reg -> Base reg -> [Constraint reg]
+sameBases (Absolute base1 index1) (Absolute base2 index2) =
+  case (base1, base2) of
+    (Nothing, Nothing) -> []
+    (Just reg1, Just reg2) -> sameRegisters reg1 reg2
+    _ -> [Unsatisifable]
+    <> case (index1, index2) of
+      (Nothing, Nothing) -> []
+      (Just (reg1, scale1), Just (reg2, scale2)) | scale1 == scale2 -> sameRegisters reg1 reg2
+      _ -> [Unsatisifable]
+sameBases Relative Relative = []
+sameBases _ _ = [Unsatisifable]

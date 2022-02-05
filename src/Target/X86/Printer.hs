@@ -56,18 +56,23 @@ printRegister register =
     R15 -> "r15"
 
 printAddress :: Address Register -> Builder
-printAddress (Address maybeBase maybeIndex maybeLabel disp) =
+printAddress (Address base maybeLabel disp) =
   case addends of
     [] -> "qword ptr [0]"
     _ -> "qword ptr [" <> mconcat (intersperse "+" addends) <> "]"
   where
     addends =
-      catMaybes
-        [ printRegister <$> maybeBase
-        , printScaledIndex <$> maybeIndex
-        , printLabel <$> maybeLabel
-        , printDisplacement disp
-        ]
+      catMaybes $
+        case base of
+          Relative ->
+            [Just "rip"]
+          Absolute maybeBase maybeIndex ->
+            [ printRegister <$> maybeBase
+            , printScaledIndex <$> maybeIndex
+            ]
+          <> [ printLabel <$> maybeLabel
+             , printDisplacement disp
+             ]
     printScaledIndex (index, scale) =
       printRegister index
         <> case scale of
