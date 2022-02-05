@@ -3,10 +3,12 @@
 module Target.X86.MachineCode where
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Internal as ByteString
 import qualified Data.ByteString.Unsafe as ByteString
 import Data.Primitive.PrimArray
 import Data.Primitive.Ptr
 import Data.Word
+import Foreign.ForeignPtr
 import Text.Printf (printf)
 import Prelude hiding (max, min)
 
@@ -21,3 +23,10 @@ toByteString :: MachineCode -> IO ByteString
 toByteString (MachineCode arr) = ByteString.unsafePackAddressLen (sizeofPrimArray arr) addr
   where
     !(Ptr addr) = primArrayContents arr
+
+fromByteString :: ByteString -> IO MachineCode
+fromByteString (ByteString.PS fptr off len) =
+  withForeignPtr fptr $ \ptr -> do
+    arr <- newPrimArray len
+    copyPtrToMutablePrimArray arr 0 (advancePtr ptr off) len
+    MachineCode <$> unsafeFreezePrimArray arr
