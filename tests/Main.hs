@@ -11,7 +11,6 @@ import qualified Data.ByteString.Lazy.Char8 as Char8
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Main as Hedgehog
-import qualified Hedgehog.Range as Range
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import System.Process (callProcess)
@@ -53,7 +52,8 @@ prop_x86Assembler :: Hedgehog.Property
 prop_x86Assembler =
   Hedgehog.withTests 1000 $
     Hedgehog.property $ do
-      instructions <- Hedgehog.forAll $ Gen.list (Range.linear 1 1000) $ generateInstruction []
+      labels <- Hedgehog.forAll $ Gen.subsequence ["a", "b", "c"]
+      instructions <- Hedgehog.forAll $ generateInstructions labels
       matchGNUAssembler instructions
 
 matchGNUAssembler :: [Instruction Register] -> Hedgehog.PropertyT IO ()

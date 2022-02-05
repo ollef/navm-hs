@@ -11,6 +11,13 @@ import qualified Hedgehog.Range as Range
 import Label (Label)
 import Target.X86.Assembly
 
+generateInstructions :: [Label] -> Gen [Instruction Register]
+generateInstructions allLabels = go allLabels
+  where
+    go [] = instructionList
+    go (undefinedLabel : undefinedLabels) = (Define undefinedLabel :) <$> go undefinedLabels
+    instructionList = Gen.list (Range.linear 1 100) $ generateInstruction allLabels
+
 generateInstruction :: [Label] -> Gen (Instruction Register)
 generateInstruction labels =
   Gen.choice
