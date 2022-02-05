@@ -23,6 +23,7 @@ printInstruction instruction =
     Call o -> "call\t" <> printOperand o
     Ret -> "ret"
     Mov o1 o2 -> "mov\t" <> printOperand o1 <> ", " <> printOperand o2
+    Define label -> printLabel label <> ":"
 
 printOperand :: Operand Register -> Builder
 printOperand operand =

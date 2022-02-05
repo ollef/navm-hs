@@ -25,6 +25,7 @@ data Instruction reg
   | Call (Operand reg)
   | Ret
   | Mov (Operand reg) (Operand reg)
+  | Define !Label
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Operand reg

@@ -211,6 +211,7 @@ assembleInstruction instruction =
     Mov (Memory _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Mov (Memory _) (Memory _) -> error "too many memory operands"
     Mov (Immediate _) _ -> error "immediate destination operand"
+    Define label -> Builder.define label
 
 toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
 toImm8 a = fromIntegral <$> (toIntegralSized a :: Maybe Int8)
