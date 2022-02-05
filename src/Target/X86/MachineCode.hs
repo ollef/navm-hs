@@ -11,6 +11,7 @@ import Text.Printf (printf)
 import Prelude hiding (max, min)
 
 newtype MachineCode = MachineCode (PrimArray Word8)
+  deriving (Eq)
 
 instance Show MachineCode where
   showsPrec _ (MachineCode arr) =
