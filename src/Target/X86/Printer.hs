@@ -17,12 +17,12 @@ printInstructions =
 printInstruction :: Instruction Register -> Builder
 printInstruction instruction =
   case instruction of
-    Add o1 _ o2 -> "add\t" <> printOperand o1 <> ", " <> printOperand o2
-    Mul (RDX, RAX) RAX o -> "mul\t" <> printOperand o
+    Add o1 _ o2 -> "  add " <> printOperand o1 <> ", " <> printOperand o2
+    Mul (RDX, RAX) RAX o -> "  mul " <> printOperand o
     Mul {} -> error "invalid mul operands"
-    Call o -> "call\t" <> printOperand o
-    Ret -> "ret"
-    Mov o1 o2 -> "mov\t" <> printOperand o1 <> ", " <> printOperand o2
+    Call o -> "  call " <> printOperand o
+    Ret -> "  ret"
+    Mov o1 o2 -> "  mov " <> printOperand o1 <> ", " <> printOperand o2
     Define label -> printLabel label <> ":"
 
 printOperand :: Operand Register -> Builder
