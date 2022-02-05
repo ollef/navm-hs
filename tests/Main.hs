@@ -61,7 +61,8 @@ matchGNUAssembler instructions = do
   let assemblyCode =
         Builder.toLazyByteString $
           ".intel_syntax noprefix\n" <> printInstructions instructions
-  gnuAssembledInstructions <-
+  Hedgehog.annotate $ Char8.unpack assemblyCode
+  gnuAssembledInstructionsBS <-
     Hedgehog.evalIO $
       withTempFile "." "tmp.s" $ \assemblyFileName assemblyFileHandle ->
         withTempFile "." "tmp.o" $ \objectFileName objectFileHandle -> do
@@ -74,6 +75,5 @@ matchGNUAssembler instructions = do
             callProcess "objcopy" ["-O", "binary", "-j", ".text", objectFileName, binaryFileName]
             ByteString.readFile binaryFileName
   let assembledInstructions = MachineCode.Builder.run $ assembleInstructions instructions
-  Hedgehog.annotate $ Char8.unpack assemblyCode
-  assembledInstructionsBS <- Hedgehog.evalIO $ MachineCode.toByteString assembledInstructions
-  assembledInstructionsBS Hedgehog.=== gnuAssembledInstructions
+  gnuAssembledInstructions <- Hedgehog.evalIO $ MachineCode.fromByteString gnuAssembledInstructionsBS
+  assembledInstructions Hedgehog.=== gnuAssembledInstructions
