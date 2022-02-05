@@ -8,6 +8,7 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.ByteString.Lazy.Char8 as Char8
+import Data.String
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Main as Hedgehog
@@ -52,7 +53,7 @@ prop_x86Assembler :: Hedgehog.Property
 prop_x86Assembler =
   Hedgehog.withTests 1000 $
     Hedgehog.property $ do
-      labels <- Hedgehog.forAll $ Gen.subsequence ["a", "b", "c"]
+      labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
       instructions <- Hedgehog.forAll $ generateInstructions labels
       matchGNUAssembler instructions
 
