@@ -12,11 +12,11 @@ import Label (Label)
 import Target.X86.Assembly
 
 generateInstructions :: [Label] -> Gen [Instruction Register]
-generateInstructions allLabels = go allLabels
+generateInstructions labels = go labels
   where
-    go [] = instructionList
-    go (undefinedLabel : undefinedLabels) = (Define undefinedLabel :) <$> go undefinedLabels
-    instructionList = Gen.list (Range.linear 1 100) $ generateInstruction allLabels
+    go [] = pure []
+    go (undefinedLabel : undefinedLabels) = (\ls1 ls2 -> Define undefinedLabel : ls1 <> ls2) <$> instructionList <*> go undefinedLabels
+    instructionList = Gen.list (Range.linear 1 100) $ generateInstruction labels
 
 generateInstruction :: [Label] -> Gen (Instruction Register)
 generateInstruction labels =
