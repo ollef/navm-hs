@@ -13,6 +13,7 @@ module Target.X86.Assembler where
 import Data.Bits
 import Data.Int
 import Data.Word
+import Label
 import Target.X86.Assembly
 import Target.X86.MachineCode.Builder (Builder)
 import qualified Target.X86.MachineCode.Builder as Builder
@@ -120,8 +121,8 @@ address addr =
       Address (Just base) (Just (RSP, Scale1)) label displacement
         | base /= RSP ->
           address $ Address (Just RSP) (Just (base, Scale1)) label displacement
-      Address Nothing Nothing Nothing displacement ->
-        (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = Builder.int32 displacement}
+      Address Nothing Nothing label displacement ->
+        (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = Builder.int32 $ labelDisplacement label displacement}
       Address (Just base) Nothing Nothing 0 ->
         modRMMod 0b00 <> sibBase base <> sibIndex RSP
       Address (Just base) (Just (index, scale)) Nothing 0
@@ -131,12 +132,17 @@ address addr =
         (modRMMod 0b01 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.word8 displacement8}
       Address (Just base) Nothing Nothing (toImm8 -> Just displacment8) ->
         (modRMMod 0b01 <> sibBase base <> sibIndex RSP) {displacement = Builder.word8 displacment8}
-      Address (Just base) (Just (index, scale)) Nothing displacement ->
-        (modRMMod 0b10 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.int32 displacement}
-      Address (Just base) Nothing Nothing displacement ->
-        (modRMMod 0b10 <> sibBase base <> sibIndex RSP) {displacement = Builder.int32 displacement}
-      Address Nothing (Just (index, scale)) Nothing displacement ->
-        (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = Builder.int32 displacement}
+      Address (Just base) (Just (index, scale)) label displacement ->
+        (modRMMod 0b10 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
+      Address (Just base) Nothing label displacement ->
+        (modRMMod 0b10 <> sibBase base <> sibIndex RSP) {displacement = Builder.int32 $labelDisplacement label displacement}
+      Address Nothing (Just (index, scale)) label displacement ->
+        (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
+  where
+    labelDisplacement :: Maybe Label -> Int32 -> Int32
+    labelDisplacement Nothing i = i
+    -- TODO relocation
+    labelDisplacement (Just _) _ = 0
 
 assembleInstruction :: Instruction Register -> Builder s
 assembleInstruction instruction =
