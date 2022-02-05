@@ -46,6 +46,7 @@ mapWithClass f instruction =
     Call o -> Call $ f any <$> o
     Ret -> Ret
     Mov dst src -> Mov (f any <$> dst) (f any <$> src)
+    Define label -> Define label
 
 data Constraint reg
   = Same !reg !reg
@@ -60,6 +61,7 @@ constraints instruction =
     Call {} -> mempty
     Ret -> mempty
     Mov {} -> mempty
+    Define {} -> mempty
 
 sameRegisters :: Eq reg => reg -> reg -> [Constraint reg]
 sameRegisters reg1 reg2
