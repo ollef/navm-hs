@@ -3,7 +3,6 @@
 
 module Main where
 
-import Control.Monad
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
@@ -28,34 +27,40 @@ main =
     [ Hedgehog.checkParallel $
         Hedgehog.Group
           "X86"
-          [ ("Assembler matches 'GNU as' on selected instructions", test_x86Assembler)
-          , ("Assembler matches 'GNU as' on random instructions", prop_x86Assembler)
-          ]
+          $ assembleSelectedX86Instructions
+            <> assembleRandomX86Instructions
     ]
 
-test_x86Assembler :: Hedgehog.Property
-test_x86Assembler =
-  Hedgehog.withTests 1 $
-    Hedgehog.property $
-      forM_ instructions $ \instruction -> do
-        Hedgehog.annotateShow instruction
-        matchGNUAssembler [instruction]
+assembleSelectedX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
+assembleSelectedX86Instructions =
+  [ ( "Selected instructions " <> fromString (show testNumber)
+    , Hedgehog.withTests 1 $
+        Hedgehog.property $ do
+          Hedgehog.annotateShow is
+          matchGNUAssembler is
+    )
+  | (testNumber, is) <- zip [0 :: Int ..] instructions
+  ]
   where
-    instructions :: [Instruction Register]
+    instructions :: [[Instruction Register]]
     instructions =
       [ add [r13 + rax] [r13 + rax] 0
       , add [rbp + rax] [rbp + rax] 0
       , add [rbp + rax * 4] [rbp + rax * 4] 0
       , add [r13 + rax * 4] [r13 + rax * 4] 0
+      , [define "a", add rax rax 0, add [rip + "a"] [rip + "a"] 0]
       ]
 
-prop_x86Assembler :: Hedgehog.Property
-prop_x86Assembler =
-  Hedgehog.withTests 1000 $
-    Hedgehog.property $ do
-      labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
-      instructions <- Hedgehog.forAll $ generateInstructions labels
-      matchGNUAssembler instructions
+assembleRandomX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
+assembleRandomX86Instructions =
+  [
+    ( "Random instructions"
+    , Hedgehog.property $ do
+        labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
+        instructions <- Hedgehog.forAll $ generateInstructions labels
+        matchGNUAssembler instructions
+    )
+  ]
 
 matchGNUAssembler :: [Instruction Register] -> Hedgehog.PropertyT IO ()
 matchGNUAssembler instructions = do
