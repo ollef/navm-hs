@@ -191,8 +191,8 @@ run builder =
     useBuilder definition uses =
       ArrayBuilder.overlays
         [ ArrayBuilder.skip (useOffset + writeOffset use) <> case size use of
-          Int8 -> ArrayBuilder.int8 $ fromIntegral $ definition - useOffset
-          Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition - useOffset
+          Int8 -> ArrayBuilder.int8 $ fromIntegral $ definition - coerce (displacement use) - useOffset
+          Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition - coerce (displacement use) - useOffset
         | (useOffset, use) <- uses
         ]
 
