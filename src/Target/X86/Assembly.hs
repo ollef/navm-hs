@@ -61,6 +61,9 @@ mov o1 o2 = fromInstruction $ Mov o1 o2
 mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
 mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
+define :: FromInstruction i => Label -> i
+define = fromInstruction . Define
+
 toScale :: Integral a => a -> Maybe Scale
 toScale a = case fromIntegral a :: Integer of
   1 -> Just Scale1
@@ -166,6 +169,9 @@ instance Ord reg => Num (Address reg) where
   _ * _ = error "can't multiply address operands"
   abs = error "abs"
   signum = error "signum"
+
+instance Ord reg => IsString (Address reg) where
+  fromString s = Address mempty (Just $ fromString s) 0
 
 type family RegisterType a :: Type
 
