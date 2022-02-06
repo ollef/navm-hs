@@ -61,16 +61,26 @@ operandSize64 = mempty {rex = Just 0b1000}
 modRMMod :: Word8 -> Description s
 modRMMod bits = mempty {modRM = Just $ Or $ bits `shiftL` 6}
 
-modRMRm :: Register -> Description s
-modRMRm reg =
+modRMRm :: Word8 -> Description s
+modRMRm rm =
   mempty
     { rex = if rexBit == 0 then Nothing else Just $ Or rexBit
     , modRM = Just $ Or rmBits
     }
   where
-    regWord = fromEnum8 reg
-    rexBit = regWord `shiftR` 3
-    rmBits = regWord .&. 0b111
+    rexBit = rm `shiftR` 3
+    rmBits = rm .&. 0b111
+
+modRMRmReg :: Register -> Description s
+modRMRmReg reg =
+  modRMMod 0b11
+    <> modRMRm (fromEnum8 reg)
+
+modRMRmNone :: Description s
+modRMRmNone = modRMRm 0b101
+
+modRMRmSI :: Description s
+modRMRmSI = modRMRm 0b100
 
 modRMExt :: Word8 -> Description s
 modRMExt ext =
@@ -97,6 +107,9 @@ sibBase reg =
     rexBit = regWord `shiftR` 3
     baseBits = regWord .&. 0b111
 
+sibBaseNone :: Description s
+sibBaseNone = sibBase RBP
+
 sibIndex :: Register -> Description s
 sibIndex reg =
   mempty
@@ -108,38 +121,42 @@ sibIndex reg =
     rexBit = regWord `shiftR` 3
     indexBits = regWord .&. 0b111
 
+sibIndexNone :: Description s
+sibIndexNone = sibIndex RSP
+
 sibScale :: Scale -> Description s
 sibScale scale =
   mempty {sib = if scaleWord == 0 then Nothing else Just $ Or $ scaleWord `shiftL` 6}
   where
     scaleWord = fromEnum8 scale
 
-address :: Address Register -> Description s
-address addr =
-  modRMRm RSP
-    <> case addr of
-      Address (Absolute (Just base) (Just (RSP, Scale1))) label displacement
-        | base /= RSP ->
-          address $ Address (Absolute (Just RSP) (Just (base, Scale1))) label displacement
-      Address (Absolute Nothing Nothing) label displacement ->
-        (modRMMod 0b00 <> sibBase RBP <> sibIndex RSP) {displacement = Builder.int32 $ labelDisplacement label displacement}
-      Address (Absolute (Just base) Nothing) Nothing 0 ->
-        modRMMod 0b00 <> sibBase base <> sibIndex RSP
-      Address (Absolute (Just base) (Just (index, scale))) Nothing 0
-        | base /= RBP && base /= R13 ->
-          modRMMod 0b00 <> sibBase base <> sibIndex index <> sibScale scale
-      Address (Absolute (Just base) (Just (index, scale))) Nothing (toImm8 -> Just displacement8) ->
-        (modRMMod 0b01 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.word8 displacement8}
-      Address (Absolute (Just base) Nothing) Nothing (toImm8 -> Just displacment8) ->
-        (modRMMod 0b01 <> sibBase base <> sibIndex RSP) {displacement = Builder.word8 displacment8}
-      Address (Absolute (Just base) (Just (index, scale))) label displacement ->
-        (modRMMod 0b10 <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
-      Address (Absolute (Just base) Nothing) label displacement ->
-        (modRMMod 0b10 <> sibBase base <> sibIndex RSP) {displacement = Builder.int32 $labelDisplacement label displacement}
-      Address (Absolute Nothing (Just (index, scale))) label displacement ->
-        (modRMMod 0b00 <> sibBase RBP <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
-      Address Relative label displacement ->
-        mempty
+address :: Int -> Address Register -> Description s
+address offset addr =
+  case addr of
+    Address (Absolute (Just base) (Just (RSP, Scale1))) label displacement
+      | base /= RSP ->
+        address offset $ Address (Absolute (Just RSP) (Just (base, Scale1))) label displacement
+    Address (Absolute Nothing Nothing) label displacement ->
+      (modRMMod 0b00 <> modRMRmSI <> sibBaseNone <> sibIndexNone) {displacement = Builder.int32 $ labelDisplacement label displacement}
+    Address (Absolute (Just base) Nothing) Nothing 0 ->
+      modRMMod 0b00 <> modRMRmSI <> sibBase base <> sibIndexNone
+    Address (Absolute (Just base) (Just (index, scale))) Nothing 0
+      | base /= RBP && base /= R13 ->
+        modRMMod 0b00 <> modRMRmSI <> sibBase base <> sibIndex index <> sibScale scale
+    Address (Absolute (Just base) (Just (index, scale))) Nothing (toImm8 -> Just displacement8) ->
+      (modRMMod 0b01 <> modRMRmSI <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.word8 displacement8}
+    Address (Absolute (Just base) Nothing) Nothing (toImm8 -> Just displacment8) ->
+      (modRMMod 0b01 <> modRMRmSI <> sibBase base <> sibIndexNone) {displacement = Builder.word8 displacment8}
+    Address (Absolute (Just base) (Just (index, scale))) label displacement ->
+      (modRMMod 0b10 <> modRMRmSI <> sibBase base <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
+    Address (Absolute (Just base) Nothing) label displacement ->
+      (modRMMod 0b10 <> modRMRmSI <> sibBase base <> sibIndexNone) {displacement = Builder.int32 $labelDisplacement label displacement}
+    Address (Absolute Nothing (Just (index, scale))) label displacement ->
+      (modRMMod 0b00 <> modRMRmSI <> sibBaseNone <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
+    Address Relative (Just label) displacement ->
+      (modRMMod 0b00 <> modRMRmNone) {displacement = Builder.useRelativeToEnd label Builder.Int32 (fromIntegral displacement + offset)}
+    Address Relative Nothing displacement ->
+      mempty
   where
     labelDisplacement :: Maybe Label -> Int32 -> Int32
     labelDisplacement Nothing i = i
@@ -151,11 +168,11 @@ assembleInstruction instruction =
   case instruction of
     Add (Register dst) _ (Register src) ->
       flattenDescription (Builder.word8 0x01) $
-        operandSize64 <> modRMMod 0b11 <> modRMRm dst <> modRMReg src
+        operandSize64 <> modRMRmReg dst <> modRMReg src
     Add (Register dst) _ (Immediate (toImm8 -> Just imm8)) ->
       flattenDescription
         (Builder.word8 0x83)
-        (operandSize64 <> modRMMod 0b11 <> modRMRm dst) {immediate = Builder.word8 imm8}
+        (operandSize64 <> modRMRmReg dst) {immediate = Builder.word8 imm8}
     Add (Register RAX) (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
         (Builder.word8 0x05)
@@ -163,42 +180,42 @@ assembleInstruction instruction =
     Add (Register dst) (Register ((== dst) -> True)) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
         (Builder.word8 0x81)
-        (operandSize64 <> modRMMod 0b11 <> modRMRm dst) {immediate = Builder.int32 imm32}
+        (operandSize64 <> modRMRmReg dst) {immediate = Builder.int32 imm32}
     Add (Register _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Register dst) _ (Memory addr) ->
       flattenDescription (Builder.word8 0x03) $
-        operandSize64 <> address addr <> modRMReg dst
+        operandSize64 <> address 0 addr <> modRMReg dst
     Add (Immediate _) _ _ -> error "immediate destination operand"
     Add (Memory addr) _ (Register src) ->
       flattenDescription (Builder.word8 0x01) $
-        operandSize64 <> address addr <> modRMReg src
+        operandSize64 <> address 0 addr <> modRMReg src
     Add (Memory addr) _ (Immediate (toImm8 -> Just imm8)) ->
       flattenDescription (Builder.word8 0x83) $
-        (operandSize64 <> address addr) {immediate = Builder.word8 imm8}
+        (operandSize64 <> address 1 addr) {immediate = Builder.word8 imm8}
     Add (Memory addr) _ (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (Builder.word8 0x81) $
-        (operandSize64 <> address addr) {immediate = Builder.int32 imm32}
+        (operandSize64 <> address 4 addr) {immediate = Builder.int32 imm32}
     Add (Memory _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Memory _) _ (Memory _) -> error "too many address operands"
     Mul (RDX, RAX) RAX (Register src) ->
       flattenDescription (Builder.word8 0xf7) $
-        operandSize64 <> modRMExt 4 <> modRMMod 0b11 <> modRMRm src
+        operandSize64 <> modRMExt 4 <> modRMRmReg src
     Mul (RDX, RAX) RAX (Memory addr) ->
       flattenDescription (Builder.word8 0xf7) $
-        operandSize64 <> modRMExt 4 <> address addr
+        operandSize64 <> modRMExt 4 <> address 0 addr
     Mul {} -> error "invalid mul operands"
     Call (Register r) ->
       flattenDescription (Builder.word8 0xff) $
-        modRMMod 0b11 <> modRMExt 2 <> modRMRm r
+        modRMExt 2 <> modRMRmReg r
     Call (Immediate _) -> Builder.word8 0xe8 <> Builder.int32 0
     Call (Memory addr) ->
       flattenDescription (Builder.word8 0xff) $
-        address addr <> modRMExt 2
+        address 0 addr <> modRMExt 2
     Ret -> Builder.word8 0xc3 -- RET
     Mov (Register dst) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription
         (Builder.word8 0xc7)
-        (operandSize64 <> modRMMod 0b11 <> modRMRm dst) {immediate = Builder.int32 imm32}
+        (operandSize64 <> modRMRmReg dst) {immediate = Builder.int32 imm32}
     Mov (Register r) (Immediate imm64) -> do
       let regWord = fromEnum8 r
           rexReg = regWord `shiftR` 3
@@ -206,16 +223,16 @@ assembleInstruction instruction =
       Builder.word8 (0x48 .|. rexReg) <> Builder.word8 (0xb8 .|. regOp) <> Builder.int64 imm64
     Mov (Register dst) (Register src) ->
       flattenDescription (Builder.word8 0x89) $
-        operandSize64 <> modRMMod 0b11 <> modRMRm dst <> modRMReg src
+        operandSize64 <> modRMRmReg dst <> modRMReg src
     Mov (Register dst) (Memory addr) ->
       flattenDescription (Builder.word8 0x8b) $
-        operandSize64 <> address addr <> modRMReg dst
+        operandSize64 <> address 0 addr <> modRMReg dst
     Mov (Memory addr) (Register src) ->
       flattenDescription (Builder.word8 0x89) $
-        operandSize64 <> address addr <> modRMReg src
+        operandSize64 <> address 0 addr <> modRMReg src
     Mov (Memory addr) (Immediate (toImm32 -> Just imm32)) ->
       flattenDescription (Builder.word8 0xc7) $
-        (operandSize64 <> address addr) {immediate = Builder.int32 imm32}
+        (operandSize64 <> address 4 addr) {immediate = Builder.int32 imm32}
     Mov (Memory _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Mov (Memory _) (Memory _) -> error "too many memory operands"
     Mov (Immediate _) _ -> error "immediate destination operand"
