@@ -154,7 +154,7 @@ address offset addr =
     Address (Absolute Nothing (Just (index, scale))) label displacement ->
       (modRMMod 0b00 <> modRMRmSI <> sibBaseNone <> sibIndex index <> sibScale scale) {displacement = Builder.int32 $ labelDisplacement label displacement}
     Address Relative (Just label) displacement ->
-      (modRMMod 0b00 <> modRMRmNone) {displacement = Builder.useRelativeToEnd label Builder.Int32 (fromIntegral displacement + offset)}
+      (modRMMod 0b00 <> modRMRmNone) {displacement = Builder.useRelativeToEnd label Builder.Int32 (fromIntegral displacement - offset)}
     Address Relative Nothing displacement ->
       mempty
   where
