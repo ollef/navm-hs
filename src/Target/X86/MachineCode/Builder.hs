@@ -89,6 +89,7 @@ data State = State
   { offsets :: !Offset.Flexible
   , definitions :: HashMap Label Offset.Flexible
   , rigidUses :: HashMap Label [(Offset, LabelUse)]
+  , flexibleUseCount :: !Int
   , valid :: !Valid
   }
 
@@ -115,7 +116,7 @@ rigidize (part : parts) acc state =
         Just (parts1', state1@State {valid = Possibly}) ->
           case rigidize parts2 acc state of
             Nothing -> rigidize parts (appendParts acc parts1') state1
-            Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state}
+            Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state, flexibleUseCount = Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)}
         Just (parts1', state1@State {valid = Always}) ->
           rigidize parts (appendParts acc parts1') state1 {valid = valid state}
   where
@@ -164,6 +165,7 @@ toArrayBuilder (Builder initialParts) =
       { offsets = mempty
       , definitions = mempty
       , rigidUses = mempty
+      , flexibleUseCount = 0
       , valid = mempty
       }
   where
@@ -173,7 +175,8 @@ toArrayBuilder (Builder initialParts) =
     go parts state = case rigidize parts mempty state {offsets = mempty, valid = mempty} of
       Nothing -> error "toBuilder: impossible"
       Just (parts', state')
-        | offsets state == offsets state' ->
+        | flexibleUseCount state' > 0
+          , flexibleUseCount state == flexibleUseCount state' ->
           -- We're not making any progress: see if selecting alternatives in
           -- the first flexible use gets us unstuck.
           case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty, valid = mempty} | alternative <- [False, True]] of
