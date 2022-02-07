@@ -55,10 +55,11 @@ assembleRandomX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
 assembleRandomX86Instructions =
   [
     ( "Random instructions"
-    , Hedgehog.property $ do
-        labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
-        instructions <- Hedgehog.forAll $ generateInstructions labels
-        matchGNUAssembler instructions
+    , Hedgehog.withTests 1000 $
+        Hedgehog.property $ do
+          labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
+          instructions <- Hedgehog.forAll $ generateInstructions labels
+          matchGNUAssembler instructions
     )
   ]
 
