@@ -49,6 +49,8 @@ assembleSelectedX86Instructions =
       , add [rbp + rax * 4] [rbp + rax * 4] 0
       , add [r13 + rax * 4] [r13 + rax * 4] 0
       , [define "a", add rax rax 0, add [rip + "a"] [rip + "a"] 0]
+      , [define "a", add rax rax 0, add [rip + "a" + 1] [rip + "a" + 1] 0]
+      , [define "a", add rax rax 0, add [rip + "a" - 1] [rip + "a" - 1] 0]
       ]
 
 assembleRandomX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
