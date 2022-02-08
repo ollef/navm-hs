@@ -111,10 +111,12 @@ rigidize (part : parts) acc state =
           | possiblyValid definition labelUse -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
           | otherwise -> Nothing
     Flexible parts1 parts2 ->
-      case rigidize parts1 acc state {valid = mempty} of
-        Nothing -> rigidize parts2 acc state
+      case rigidize parts1 mempty state {valid = mempty} of
+        Nothing -> case rigidize parts2 acc state of
+          Nothing -> Nothing
+          Just (parts2', state2) -> rigidize parts (appendParts acc parts2') state2
         Just (parts1', state1@State {valid = Possibly}) ->
-          case rigidize parts2 acc state of
+          case rigidize parts2 mempty state {valid = mempty} of
             Nothing -> rigidize parts (appendParts acc parts1') state1
             Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state, flexibleUseCount = Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)}
         Just (parts1', state1@State {valid = Always}) ->
@@ -198,6 +200,9 @@ run builder =
           Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition + coerce (displacement use) - useOffset
         | (useOffset, use) <- uses
         ]
+
+flexible :: Builder s -> Builder s -> Builder s
+flexible (Builder l) (Builder r) = Builder $ pure $ Flexible (toList l) (toList r)
 
 word8 :: Word8 -> Builder s
 word8 = Builder . pure . Rigid . ArrayBuilder.word8
