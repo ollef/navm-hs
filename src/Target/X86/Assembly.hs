@@ -22,6 +22,7 @@ import Target.X86.Register as X
 data Instruction reg
   = Add (Operand reg) (Operand reg) (Operand reg)
   | Mul !(reg, reg) reg (Operand reg)
+  | Jmp (JmpOperand reg)
   | Call (Operand reg)
   | Ret
   | Mov (Operand reg) (Operand reg)
@@ -32,6 +33,11 @@ data Operand reg
   = Immediate !Int64
   | Register !reg
   | Memory !(Address reg)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
+data JmpOperand reg
+  = JmpRelative !(Maybe Label) !Int32
+  | JmpAbsolute !(Operand reg)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Address reg
@@ -49,17 +55,20 @@ data Scale = Scale1 | Scale2 | Scale4 | Scale8
 add :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> Operand reg -> i
 add o1 o2 o3 = fromInstruction $ Add o1 o2 o3
 
-ret :: FromInstruction i => i
-ret = fromInstruction Ret
+mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
+mul out o1 o2 = fromInstruction $ Mul out o1 o2
+
+jmp :: (reg ~ RegisterType i, FromInstruction i) => JmpOperand reg -> i
+jmp = fromInstruction . Jmp
 
 call :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> i
 call = fromInstruction . Call
 
+ret :: FromInstruction i => i
+ret = fromInstruction Ret
+
 mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
 mov o1 o2 = fromInstruction $ Mov o1 o2
-
-mul :: (reg ~ RegisterType i, FromInstruction i) => (reg, reg) -> reg -> Operand reg -> i
-mul out o1 o2 = fromInstruction $ Mul out o1 o2
 
 define :: FromInstruction i => Label -> i
 define = fromInstruction . Define
@@ -170,14 +179,34 @@ instance Ord reg => Num (Address reg) where
   abs = error "abs"
   signum = error "signum"
 
-instance Ord reg => IsString (Address reg) where
-  fromString s = Address mempty (Just $ fromString s) 0
+instance Num (JmpOperand reg) where
+  fromInteger = JmpRelative Nothing . fromInteger
+  JmpRelative label1 offset1 + JmpRelative label2 offset2 = JmpRelative label offset
+    where
+      label = case (label1, label2) of
+        (Nothing, l2) -> l2
+        (l1, Nothing) -> l1
+        (Just _, Just _) -> error "can't add labels"
+      offset = offset1 + offset2
+  _ + _ = error "can only add relative jmp operands"
+  JmpRelative Nothing offset1 * JmpRelative Nothing offset2 = JmpRelative Nothing $ offset1 * offset2
+  JmpRelative Nothing 0 * _ = 0
+  _ * JmpRelative Nothing 0 = 0
+  JmpRelative Nothing 1 * o = o
+  o * JmpRelative Nothing 1 = o
+  _ * _ = error "can't multiply jmp operands"
+  negate (JmpRelative Nothing offset) = JmpRelative Nothing $ negate offset
+  negate _ = error "can't negate jmp operand"
+  abs = error "abs"
+  signum = error "signum"
 
 type family RegisterType a :: Type
 
 type instance RegisterType (Address reg) = reg
 
 type instance RegisterType (Operand reg) = reg
+
+type instance RegisterType (JmpOperand reg) = reg
 
 type instance RegisterType (Instruction reg) = reg
 
@@ -191,6 +220,9 @@ instance reg ~ Register => FromRegister (Address reg) where
 instance reg ~ Register => FromRegister (Operand reg) where
   fromRegister = Register
 
+instance reg ~ Register => FromRegister (JmpOperand reg) where
+  fromRegister = JmpAbsolute . fromRegister
+
 class FromAddress a where
   fromAddress :: Address (RegisterType a) -> a
 
@@ -199,6 +231,9 @@ instance FromAddress (Address reg) where
 
 instance FromAddress (Operand reg) where
   fromAddress = Memory
+
+instance FromAddress (JmpOperand reg) where
+  fromAddress = JmpAbsolute . fromAddress
 
 rip :: FromAddress a => a
 rip = fromAddress $ Address Relative Nothing 0
@@ -209,6 +244,18 @@ instance IsList (Operand reg) where
   fromList _ = error "address operand list doesn't have one element"
   toList (Memory addr) = [addr]
   toList _ = error "operand isn't an address"
+
+instance IsList (JmpOperand reg) where
+  type Item (JmpOperand reg) = Address reg
+  fromList = JmpAbsolute . fromList
+  toList (JmpAbsolute (Memory addr)) = [addr]
+  toList _ = error "operand isn't an address"
+
+instance Ord reg => IsString (Address reg) where
+  fromString s = Address mempty (Just $ fromString s) 0
+
+instance IsString (JmpOperand reg) where
+  fromString s = JmpRelative (Just $ fromString s) 0
 
 class FromInstruction a where
   fromInstruction :: Instruction (RegisterType a) -> a

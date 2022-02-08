@@ -20,6 +20,7 @@ printInstruction instruction =
     Add o1 _ o2 -> "  add " <> printOperand o1 <> ", " <> printOperand o2
     Mul (RDX, RAX) RAX o -> "  mul " <> printOperand o
     Mul {} -> error "invalid mul operands"
+    Jmp o -> "  jmp " <> printJmpOperand o
     Call o -> "  call " <> printOperand o
     Ret -> "  ret"
     Mov o1 o2 -> "  mov " <> printOperand o1 <> ", " <> printOperand o2
@@ -31,6 +32,14 @@ printOperand operand =
     Immediate i -> Builder.int64Dec i
     Register r -> printRegister r
     Memory a -> printAddress a
+
+printJmpOperand :: JmpOperand Register -> Builder
+printJmpOperand operand =
+  case operand of
+    JmpRelative Nothing offset -> ".+" <> Builder.int32Dec offset
+    JmpRelative (Just label) 0 -> printLabel label
+    JmpRelative (Just label) offset -> printLabel label <> "+" <> Builder.int32Dec offset
+    JmpAbsolute o -> printOperand o
 
 printLabel :: Label -> Builder
 printLabel (Label.Label l) = ".L" <> Builder.byteString l

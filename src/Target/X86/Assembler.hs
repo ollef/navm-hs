@@ -204,6 +204,22 @@ assembleInstruction instruction =
       flattenDescription (Builder.word8 0xf7) $
         operandSize64 <> modRMExt 4 <> address 0 addr
     Mul {} -> error "invalid mul operands"
+    Jmp (JmpRelative (Just label) offset) ->
+      Builder.flexible
+        (flattenDescription (Builder.word8 0xeb) mempty {immediate = Builder.useRelativeToEnd label Builder.Int8 (fromIntegral offset)})
+        (flattenDescription (Builder.word8 0xe9) mempty {immediate = Builder.useRelativeToEnd label Builder.Int32 (fromIntegral offset)})
+    Jmp (JmpRelative Nothing (toImm8 . subtract 2 -> Just imm8)) ->
+      flattenDescription (Builder.word8 0xeb) mempty {immediate = Builder.word8 imm8}
+    Jmp (JmpRelative Nothing imm32) ->
+      flattenDescription (Builder.word8 0xe9) mempty {immediate = Builder.int32 $ imm32 - 4}
+    Jmp (JmpAbsolute (Register r)) ->
+      flattenDescription (Builder.word8 0xff) $
+        modRMRmReg r
+    Jmp (JmpAbsolute (Immediate _)) ->
+      -- TODO relocation
+      flattenDescription (Builder.word8 0xe9) mempty {immediate = Builder.int32 0}
+    Jmp (JmpAbsolute (Memory addr)) ->
+      mempty
     Call (Register r) ->
       flattenDescription (Builder.word8 0xff) $
         modRMExt 2 <> modRMRmReg r

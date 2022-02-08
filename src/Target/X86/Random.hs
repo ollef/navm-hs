@@ -14,7 +14,7 @@ import Target.X86.Assembly
 generateInstructions :: [Label] -> Gen [Instruction Register]
 generateInstructions labels = go labels
   where
-    go [] = pure []
+    go [] = instructionList
     go (undefinedLabel : undefinedLabels) = (\ls1 ls2 -> Define undefinedLabel : ls1 <> ls2) <$> instructionList <*> go undefinedLabels
     instructionList = Gen.list (Range.linear 1 100) $ generateInstruction labels
 
@@ -26,6 +26,7 @@ generateInstruction labels =
         src <- generateOperand labels $ Just dst
         pure $ Add dst dst src
     , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand labels
+    , Jmp <$> generateJmpOperand labels
     , Call <$> generateOperand labels Nothing
     , pure Ret
     , do
@@ -43,6 +44,13 @@ generateOperand labels dst =
       <> case dst of
         Just (Memory _) -> []
         _ -> [Memory <$> generateAddress labels]
+
+generateJmpOperand :: [Label] -> Gen (JmpOperand Register)
+generateJmpOperand labels =
+  Gen.choice
+    [ JmpRelative <$> generateOptionalLabel labels <*> Gen.int32 Range.linearBounded
+    , JmpAbsolute <$> generateOperand labels Nothing
+    ]
 
 generateRegisterOrAddressOperand :: [Label] -> Gen (Operand Register)
 generateRegisterOrAddressOperand labels =
@@ -82,6 +90,9 @@ generateLabel :: Alternative f => [Label] -> f (Gen Label)
 generateLabel [] = empty
 generateLabel labels = pure $ Gen.element labels
 
+generateOptionalLabel :: [Label] -> Gen (Maybe Label)
+generateOptionalLabel labels = fmap join $ optional $ sequence $ generateLabel labels
+
 generateRegister :: Gen Register
 generateRegister = Gen.enumBounded
 
@@ -89,7 +100,7 @@ generateAddress :: [Label] -> Gen (Address Register)
 generateAddress labels =
   Address
     <$> generateBase
-    <*> fmap join (optional $ sequence $ generateLabel labels)
+    <*> generateOptionalLabel labels
     <*> generateDisplacement
   where
     generateDisplacement = Gen.int32 Range.linearBounded

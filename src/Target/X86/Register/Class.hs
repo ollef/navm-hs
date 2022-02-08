@@ -43,6 +43,7 @@ mapWithClass f instruction =
   case instruction of
     Add dst src1 src2 -> Add (f any <$> dst) (f any <$> src1) (f any <$> src2)
     Mul (dst1, dst2) src1 src2 -> Mul (f rdx dst1, f rax dst2) (f rax src1) (f any <$> src2)
+    Jmp o -> Jmp (f any <$> o)
     Call o -> Call $ f any <$> o
     Ret -> Ret
     Mov dst src -> Mov (f any <$> dst) (f any <$> src)
@@ -58,6 +59,7 @@ constraints instruction =
   case instruction of
     Add dst src1 _src2 -> sameOperands dst src1
     Mul {} -> mempty
+    Jmp {} -> mempty
     Call {} -> mempty
     Ret -> mempty
     Mov {} -> mempty
