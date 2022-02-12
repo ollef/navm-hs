@@ -156,7 +156,7 @@ address offset addr =
     Address Relative (Just label) displacement ->
       (modRMMod 0b00 <> modRMRmNone) {displacement = Builder.useRelativeToEnd label Builder.Int32 (fromIntegral displacement - offset)}
     Address Relative Nothing displacement ->
-      mempty
+      modRMRmNone {displacement = Builder.int32 displacement}
   where
     labelDisplacement :: Maybe Label -> Int32 -> Int32
     labelDisplacement Nothing i = i
