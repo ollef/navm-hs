@@ -212,7 +212,7 @@ assembleInstruction instruction =
     Jmp (JmpRelative Nothing (toImm8 . subtract 2 -> Just imm8)) ->
       flattenDescription (Builder.word8 0xeb) mempty {immediate = Builder.word8 imm8}
     Jmp (JmpRelative Nothing imm32) ->
-      flattenDescription (Builder.word8 0xe9) mempty {immediate = Builder.int32 $ imm32 - 4}
+      flattenDescription (Builder.word8 0xe9) mempty {immediate = Builder.int32 $ imm32 - 5}
     Jmp (JmpAbsolute (Register r)) ->
       flattenDescription (Builder.word8 0xff) $
         modRMExt 4 <> modRMRmReg r
