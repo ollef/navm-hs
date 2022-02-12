@@ -54,6 +54,7 @@ assembleSelectedX86Instructions =
       , [jmp "a", define "a"]
       , [define "a", jmp "a"]
       , [define "a", jmp ("a" + 1)]
+      , jmp rax
       ]
 
 assembleRandomX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
