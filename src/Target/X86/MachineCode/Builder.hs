@@ -116,8 +116,8 @@ rigidize (part : parts) acc state =
           Nothing -> Nothing
           Just (parts2', state2) -> rigidize parts (appendParts acc parts2') state2
         Just (parts1', state1@State {valid = Possibly}) ->
-          case rigidize parts2 mempty state {valid = mempty} of
-            Nothing -> rigidize parts (appendParts acc parts1') state1
+          case rigidize parts2 mempty state of
+            Nothing -> rigidize parts (appendParts acc parts1') state1 {valid = Possibly <> valid state}
             Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state, flexibleUseCount = Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)}
         Just (parts1', state1@State {valid = Always}) ->
           rigidize parts (appendParts acc parts1') state1 {valid = valid state}
