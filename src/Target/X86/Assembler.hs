@@ -82,6 +82,7 @@ modRMRmNone = modRMRm 0b101
 modRMRmSI :: Description s
 modRMRmSI = modRMRm 0b100
 
+-- | This is the /digit in opcode description, e.g. /4.
 modRMExt :: Word8 -> Description s
 modRMExt ext =
   mempty {modRM = Just $ Or $ ext `shiftL` 3}
