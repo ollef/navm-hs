@@ -223,7 +223,7 @@ assembleInstruction instruction =
       mempty
     Call (Register r) ->
       flattenDescription (Builder.word8 0xff) $
-        operandSize64 <> modRMExt 2 <> modRMRmReg r
+        modRMExt 2 <> modRMRmReg r
     Call (Immediate _) -> Builder.word8 0xe8 <> Builder.int32 0
     Call (Memory addr) ->
       flattenDescription (Builder.word8 0xff) $
