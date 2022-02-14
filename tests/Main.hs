@@ -9,7 +9,6 @@ import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Data.String
 import qualified Hedgehog
-import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Main as Hedgehog
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
@@ -64,8 +63,7 @@ assembleRandomX86Instructions =
     ( "Random instructions"
     , Hedgehog.withTests 1000 $
         Hedgehog.property $ do
-          labels <- Hedgehog.forAll $ Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
-          instructions <- Hedgehog.forAll $ generateInstructions labels
+          instructions <- Hedgehog.forAll generateInstructions
           matchGNUAssembler instructions
     )
   ]

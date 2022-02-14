@@ -5,18 +5,26 @@ module Target.X86.Random where
 import Control.Applicative
 import Control.Monad
 import Data.Int
+import Data.List (sort)
+import Data.String
 import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Label (Label)
 import Target.X86.Assembly
 
-generateInstructions :: [Label] -> Gen [Instruction Register]
-generateInstructions labels = go labels
+generateInstructions :: Gen [Instruction Register]
+generateInstructions = do
+  labels <- Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
+  instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction labels
+  labelPositions <- Gen.list (Range.singleton $ length labels) $ Gen.int $ Range.constant 0 $ length instructions
+  pure $ defineLabels 0 (zip labels $ sort labelPositions) instructions
   where
-    go [] = instructionList
-    go (undefinedLabel : undefinedLabels) = (\ls1 ls2 -> Define undefinedLabel : ls1 <> ls2) <$> instructionList <*> go undefinedLabels
-    instructionList = Gen.list (Range.linear 1 100) $ generateInstruction labels
+    defineLabels _pos [] is = is
+    defineLabels _pos ls [] = Define . fst <$> ls
+    defineLabels pos ls@((l, lpos) : ls') is@(i : is')
+      | pos >= lpos = Define l : defineLabels pos ls' is
+      | otherwise = i : defineLabels (pos + 1) ls is'
 
 generateInstruction :: [Label] -> Gen (Instruction Register)
 generateInstruction labels =
