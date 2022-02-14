@@ -174,7 +174,7 @@ toArrayBuilder (Builder initialParts) =
     go :: [Part s] -> State -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
     go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
     go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
-    go parts state = case rigidize parts mempty state {offsets = mempty, valid = mempty} of
+    go parts state = case rigidize parts mempty State {offsets = mempty, definitions = definitions state, rigidUses = rigidUses state, flexibleUseCount = 0, valid = mempty} of
       Nothing -> error "toBuilder: impossible"
       Just (parts', state')
         | flexibleUseCount state' > 0
