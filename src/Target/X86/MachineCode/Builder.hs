@@ -93,6 +93,16 @@ data State = State
   , valid :: !Valid
   }
 
+rewind :: State -> State
+rewind state =
+  State
+    { offsets = mempty
+    , definitions = definitions state
+    , rigidUses = rigidUses state
+    , flexibleUseCount = 0
+    , valid = mempty
+    }
+
 rigidize :: [Part s] -> Builder s -> State -> Maybe ([Part s], State)
 rigidize [] (Builder acc) state = Just (Foldable.toList acc, state)
 rigidize (part : parts) acc state =
@@ -111,16 +121,20 @@ rigidize (part : parts) acc state =
           | possiblyValid definition labelUse -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
           | otherwise -> Nothing
     Flexible parts1 parts2 ->
-      case rigidize parts1 mempty state {valid = mempty} of
-        Nothing -> case rigidize parts2 acc state of
-          Nothing -> Nothing
-          Just (parts2', state2) -> rigidize parts (appendParts acc parts2') state2
-        Just (parts1', state1@State {valid = Possibly}) ->
-          case rigidize parts2 mempty state of
-            Nothing -> rigidize parts (appendParts acc parts1') state1 {valid = Possibly <> valid state}
-            Just (parts2', state2) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state {offsets = Offset.choice (offsets state1) (offsets state2), valid = Possibly <> valid state, flexibleUseCount = 1 + Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)}
-        Just (parts1', state1@State {valid = Always}) ->
-          rigidize parts (appendParts acc parts1') state1 {valid = valid state}
+      case (rigidize parts1 mempty state {valid = mempty}, rigidize parts2 mempty state {valid = valid state}) of
+        (Nothing, Nothing) -> Nothing
+        (Nothing, Just (parts2', state2)) -> rigidize parts (appendParts acc parts2') state2
+        (Just (parts1', state1@State {valid = Possibly}), Just (parts2', state2)) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state'
+          where
+            state' =
+              state
+                { offsets =
+                    Offset.choice (offsets state1) (offsets state2)
+                , valid = valid state2
+                , flexibleUseCount = 1 + Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)
+                }
+        (Just (parts1', state1@State {valid = Possibly}), Nothing) -> rigidize parts (appendParts acc parts1') state1
+        (Just (parts1', state1@State {valid = Always}), _) -> rigidize parts (appendParts acc parts1') state1 {valid = valid state}
   where
     alwaysValid :: Offset.Flexible -> LabelUse -> Bool
     alwaysValid definition LabelUse {size = useSize, displacement} =
@@ -152,7 +166,7 @@ selectAlternative :: Bool -> [Part s] -> Builder s -> State -> Maybe ([Part s], 
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
-    Rigid builder -> selectAlternative alternative parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
+    Rigid builder -> selectAlternative alternative parts (appendPart acc part) $ state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
     Define _ -> error "selectAlternative: unexpected Define"
     Use _ _ -> error "selectAlternative: unexpected Use"
     Flexible parts0 parts1
@@ -174,14 +188,14 @@ toArrayBuilder (Builder initialParts) =
     go :: [Part s] -> State -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
     go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
     go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
-    go parts state = case rigidize parts mempty State {offsets = mempty, definitions = definitions state, rigidUses = rigidUses state, flexibleUseCount = 0, valid = mempty} of
+    go parts state = case rigidize parts mempty $ rewind state of
       Nothing -> error "toBuilder: impossible"
       Just (parts', state')
         | flexibleUseCount state' > 0
           , flexibleUseCount state == flexibleUseCount state' ->
           -- We're not making any progress: see if selecting alternatives in
           -- the first flexible use gets us unstuck.
-          case catMaybes [selectAlternative alternative parts' mempty state' {offsets = mempty, valid = mempty} | alternative <- [False, True]] of
+          case catMaybes [selectAlternative alternative parts' mempty $ rewind state' | alternative <- [False, True]] of
             [] -> error "toBuilder: no alternative works"
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
