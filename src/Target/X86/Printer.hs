@@ -24,12 +24,13 @@ printInstruction instruction =
     Call o -> "  call " <> printOperand o
     Ret -> "  ret"
     Mov o1 o2 -> "  mov " <> printOperand o1 <> ", " <> printOperand o2
+    MovImmediate64 r i -> "  mov " <> printRegister r <> ", " <> Builder.int64Dec i
     Define label -> printLabel label <> ":"
 
 printOperand :: Operand Register -> Builder
 printOperand operand =
   case operand of
-    Immediate i -> Builder.int64Dec i
+    Immediate i -> Builder.int32Dec i
     Register r -> printRegister r
     Memory a -> printAddress a
 

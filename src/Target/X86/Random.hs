@@ -39,8 +39,9 @@ generateInstruction labels =
     , pure Ret
     , do
         dst <- generateDestinationOperand labels
-        src <- generateMovOperand labels dst
+        src <- generateOperand labels $ Just dst
         pure $ Mov dst src
+    , MovImmediate64 <$> generateRegister <*> Gen.int64 Range.linearBounded
     ]
 
 generateOperand :: [Label] -> Maybe (Operand Register) -> Gen (Operand Register)
@@ -56,7 +57,7 @@ generateOperand labels dst =
 generateJmpOperand :: [Label] -> Gen (JmpOperand Register)
 generateJmpOperand labels =
   Gen.choice
-    [ JmpRelative <$> generateOptionalLabel labels <*> Gen.int32 Range.linearBounded
+    [ JmpRelative <$> generateOptionalLabel labels <*> generateImmediate
     , JmpAbsolute <$> generateOperand labels Nothing
     ]
 
@@ -67,16 +68,6 @@ generateRegisterOrAddressOperand labels =
     , Memory <$> generateAddress labels
     ]
 
-generateMovOperand :: [Label] -> Operand Register -> Gen (Operand Register)
-generateMovOperand labels dst =
-  Gen.choice $
-    [ Immediate <$> generateMovImmediate dst
-    , Register <$> generateRegister
-    ]
-      <> case dst of
-        Memory _ -> []
-        _ -> [Memory <$> generateAddress labels]
-
 generateDestinationOperand :: [Label] -> Gen (Operand Register)
 generateDestinationOperand labels =
   Gen.choice
@@ -84,15 +75,9 @@ generateDestinationOperand labels =
     , Memory <$> generateAddress labels
     ]
 
-generateImmediate :: Gen Int64
+generateImmediate :: Gen Int32
 generateImmediate =
-  fromIntegral <$> Gen.int32 Range.linearBounded
-
-generateMovImmediate :: Operand Register -> Gen Int64
-generateMovImmediate dst =
-  case dst of
-    Register _ -> Gen.int64 Range.linearBounded
-    _ -> generateImmediate
+  Gen.int32 Range.linearBounded
 
 generateLabel :: Alternative f => [Label] -> f (Gen Label)
 generateLabel [] = empty
@@ -111,7 +96,7 @@ generateAddress labels =
     <*> generateOptionalLabel labels
     <*> generateDisplacement
   where
-    generateDisplacement = Gen.int32 Range.linearBounded
+    generateDisplacement = generateImmediate
 
 generateBase :: Gen (Base Register)
 generateBase =

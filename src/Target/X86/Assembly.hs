@@ -26,11 +26,12 @@ data Instruction reg
   | Call (Operand reg)
   | Ret
   | Mov (Operand reg) (Operand reg)
+  | MovImmediate64 !reg !Int64
   | Define !Label
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Operand reg
-  = Immediate !Int64
+  = Immediate !Int32
   | Register !reg
   | Memory !(Address reg)
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -69,6 +70,9 @@ ret = fromInstruction Ret
 
 mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
 mov o1 o2 = fromInstruction $ Mov o1 o2
+
+movi64 :: (reg ~ RegisterType i, FromInstruction i) => reg -> Int64 -> i
+movi64 r i = fromInstruction $ MovImmediate64 r i
 
 define :: FromInstruction i => Label -> i
 define = fromInstruction . Define

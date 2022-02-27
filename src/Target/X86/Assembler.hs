@@ -230,18 +230,17 @@ assembleInstruction instruction =
           <> opcode 0x83
           <> modRMRmReg dst
           <> immediate (Builder.word8 imm8)
-    Add (Register RAX) (Register RAX) (Immediate (toImm32 -> Just imm32)) ->
+    Add (Register RAX) (Register RAX) (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x05
           <> immediate (Builder.int32 imm32)
-    Add (Register dst) (Register ((== dst) -> True)) (Immediate (toImm32 -> Just imm32)) ->
+    Add (Register dst) _ (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x81
           <> modRMRmReg dst
           <> immediate (Builder.int32 imm32)
-    Add (Register _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Register dst) _ (Memory addr) ->
       flattenDescription $
         operandSize64
@@ -261,13 +260,12 @@ assembleInstruction instruction =
           <> opcode 0x83
           <> address 1 addr
           <> immediate (Builder.word8 imm8)
-    Add (Memory addr) _ (Immediate (toImm32 -> Just imm32)) ->
+    Add (Memory addr) _ (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x81
           <> address 4 addr
           <> immediate (Builder.int32 imm32)
-    Add (Memory _) _ (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Add (Memory _) _ (Memory _) -> error "too many address operands"
     Mul (RDX, RAX) RAX (Register src) ->
       flattenDescription $
@@ -324,18 +322,20 @@ assembleInstruction instruction =
           <> address 0 addr
           <> modRMExt 2
     Ret -> Builder.word8 0xc3 -- RET
-    Mov (Register dst) (Immediate (toImm32 -> Just imm32)) ->
+    MovImmediate64 dst (toImm32 -> Just imm32) ->
+      assembleInstruction $ Mov (Register dst) (Immediate imm32)
+    MovImmediate64 dst imm64 -> do
+      flattenDescription $
+        operandSize64
+          <> opcode 0xb8
+          <> opcodeReg dst
+          <> immediate (Builder.int64 imm64)
+    Mov (Register dst) (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0xc7
           <> modRMRmReg dst
           <> immediate (Builder.int32 imm32)
-    Mov (Register r) (Immediate imm64) -> do
-      flattenDescription $
-        operandSize64
-          <> opcode 0xb8
-          <> opcodeReg r
-          <> immediate (Builder.int64 imm64)
     Mov (Register dst) (Register src) ->
       flattenDescription $
         operandSize64
@@ -354,13 +354,12 @@ assembleInstruction instruction =
           <> opcode 0x89
           <> address 0 addr
           <> modRMReg src
-    Mov (Memory addr) (Immediate (toImm32 -> Just imm32)) ->
+    Mov (Memory addr) (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0xc7
           <> address 4 addr
           <> immediate (Builder.int32 imm32)
-    Mov (Memory _) (Immediate _) -> error "immediate operand has to fit in 32 bits"
     Mov (Memory _) (Memory _) -> error "too many memory operands"
     Mov (Immediate _) _ -> error "immediate destination operand"
     Define label -> Builder.define label
