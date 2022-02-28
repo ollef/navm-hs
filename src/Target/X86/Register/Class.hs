@@ -52,10 +52,9 @@ mapWithClass f instruction =
 
 data Constraint reg
   = Same !reg !reg
-  | Unsatisifable
   deriving (Eq, Show)
 
-constraints :: Eq reg => Instruction reg -> [Constraint reg]
+constraints :: Eq reg => Instruction reg -> Maybe [Constraint reg]
 constraints instruction =
   case instruction of
     Add dst src1 _src2 -> sameOperands dst src1
@@ -72,31 +71,31 @@ sameRegisters reg1 reg2
   | reg1 == reg2 = []
   | otherwise = [Same reg1 reg2]
 
-sameOperands :: Eq reg => Operand reg -> Operand reg -> [Constraint reg]
+sameOperands :: Eq reg => Operand reg -> Operand reg -> Maybe [Constraint reg]
 sameOperands (Immediate imm1) (Immediate imm2)
-  | imm1 == imm2 = []
-  | otherwise = [Unsatisifable]
-sameOperands (Immediate _) _ = [Unsatisifable]
-sameOperands (Register reg1) (Register reg2) = sameRegisters reg1 reg2
-sameOperands (Register _) _ = [Unsatisifable]
+  | imm1 == imm2 = Just []
+  | otherwise = Nothing
+sameOperands (Immediate _) _ = Nothing
+sameOperands (Register reg1) (Register reg2) = Just $ sameRegisters reg1 reg2
+sameOperands (Register _) _ = Nothing
 sameOperands (Memory addr1) (Memory addr2) = sameAddresses addr1 addr2
-sameOperands (Memory _) _ = [Unsatisifable]
+sameOperands (Memory _) _ = Nothing
 
-sameAddresses :: Eq reg => Address reg -> Address reg -> [Constraint reg]
+sameAddresses :: Eq reg => Address reg -> Address reg -> Maybe [Constraint reg]
 sameAddresses (Address base1 label1 imm1) (Address base2 label2 imm2)
   | imm1 == imm2 && label1 == label2 =
     sameBases base1 base2
-  | otherwise = [Unsatisifable]
+  | otherwise = Nothing
 
-sameBases :: Eq reg => Base reg -> Base reg -> [Constraint reg]
+sameBases :: Eq reg => Base reg -> Base reg -> Maybe [Constraint reg]
 sameBases (Absolute base1 index1) (Absolute base2 index2) =
   case (base1, base2) of
-    (Nothing, Nothing) -> []
-    (Just reg1, Just reg2) -> sameRegisters reg1 reg2
-    _ -> [Unsatisifable]
+    (Nothing, Nothing) -> Just []
+    (Just reg1, Just reg2) -> Just $ sameRegisters reg1 reg2
+    _ -> Nothing
     <> case (index1, index2) of
-      (Nothing, Nothing) -> []
-      (Just (reg1, scale1), Just (reg2, scale2)) | scale1 == scale2 -> sameRegisters reg1 reg2
-      _ -> [Unsatisifable]
-sameBases Relative Relative = []
-sameBases _ _ = [Unsatisifable]
+      (Nothing, Nothing) -> Just []
+      (Just (reg1, scale1), Just (reg2, scale2)) | scale1 == scale2 -> Just $ sameRegisters reg1 reg2
+      _ -> Nothing
+sameBases Relative Relative = Just []
+sameBases _ _ = Nothing
