@@ -28,12 +28,12 @@ import Target.X86.MachineCode
 import Prelude hiding (max, min)
 import qualified Prelude
 
-newtype Builder s = Builder (Tsil (Part s))
+newtype Builder = Builder (Tsil Part)
   deriving (Monoid)
 
-data Part s
-  = Rigid (ArrayBuilder s)
-  | Flexible [Part s] [Part s]
+data Part
+  = Rigid ArrayBuilder
+  | Flexible [Part] [Part]
   | Define !Label
   | Use !Label !LabelUse
 
@@ -51,11 +51,11 @@ data LabelUse = LabelUse
   }
   deriving (Show)
 
-instance Semigroup (Builder s) where
+instance Semigroup Builder where
   Builder parts1 <> Builder Tsil.Empty = Builder parts1
   parts1 <> Builder (parts2 Tsil.:> part) = appendPart (parts1 <> Builder parts2) part
 
-appendPart :: Builder s -> Part s -> Builder s
+appendPart :: Builder -> Part -> Builder
 appendPart (Builder parts) part =
   Builder $
     case part of
@@ -64,13 +64,13 @@ appendPart (Builder parts) part =
         _ -> parts Tsil.:> part
       _ -> parts Tsil.:> part
 
-appendParts :: Builder s -> [Part s] -> Builder s
+appendParts :: Builder -> [Part] -> Builder
 appendParts = foldl' appendPart
 
-define :: Label -> Builder s
+define :: Label -> Builder
 define label = Builder $ pure $ Define label
 
-useRelativeToEnd :: Label -> LabelUseSize -> Int -> Builder s
+useRelativeToEnd :: Label -> LabelUseSize -> Int -> Builder
 useRelativeToEnd label labelSize displacement =
   Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = - byteSize, size = labelSize, displacement}]
   where
@@ -103,7 +103,7 @@ rewind state =
     , valid = mempty
     }
 
-rigidize :: [Part s] -> Builder s -> State -> Maybe ([Part s], State)
+rigidize :: [Part] -> Builder -> State -> Maybe ([Part], State)
 rigidize [] (Builder acc) state = Just (Foldable.toList acc, state)
 rigidize (part : parts) acc state =
   case part of
@@ -162,7 +162,7 @@ rigidize (part : parts) acc state =
         Int8 -> (fromIntegral (minBound :: Int8), fromIntegral (maxBound :: Int8))
         Int32 -> (fromIntegral (minBound :: Int32), fromIntegral (maxBound :: Int32))
 
-selectAlternative :: Bool -> [Part s] -> Builder s -> State -> Maybe ([Part s], State)
+selectAlternative :: Bool -> [Part] -> Builder -> State -> Maybe ([Part], State)
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
@@ -173,7 +173,7 @@ selectAlternative alternative (part : parts) acc state =
       | alternative -> rigidize (parts1 <> parts) acc state
       | otherwise -> rigidize (parts0 <> parts) acc state
 
-toArrayBuilder :: Builder s -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
+toArrayBuilder :: Builder -> (ArrayBuilder, HashMap Label (Offset, [(Offset, LabelUse)]))
 toArrayBuilder (Builder initialParts) =
   go
     (Foldable.toList initialParts)
@@ -185,7 +185,7 @@ toArrayBuilder (Builder initialParts) =
       , valid = mempty
       }
   where
-    go :: [Part s] -> State -> (ArrayBuilder s, HashMap Label (Offset, [(Offset, LabelUse)]))
+    go :: [Part] -> State -> (ArrayBuilder, HashMap Label (Offset, [(Offset, LabelUse)]))
     go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
     go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
     go parts state = case rigidize parts mempty $ rewind state of
@@ -200,7 +200,7 @@ toArrayBuilder (Builder initialParts) =
             (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
 
-run :: (forall s. Builder s) -> MachineCode
+run :: Builder -> MachineCode
 run builder =
   MachineCode $
     ArrayBuilder.run $
@@ -215,29 +215,29 @@ run builder =
         | (useOffset, use) <- uses
         ]
 
-flexible :: Builder s -> Builder s -> Builder s
+flexible :: Builder -> Builder -> Builder
 flexible (Builder l) (Builder r) = Builder $ pure $ Flexible (toList l) (toList r)
 
-word8 :: Word8 -> Builder s
+word8 :: Word8 -> Builder
 word8 = Builder . pure . Rigid . ArrayBuilder.word8
 
-word16 :: Word16 -> Builder s
+word16 :: Word16 -> Builder
 word16 = Builder . pure . Rigid . ArrayBuilder.word16
 
-word32 :: Word32 -> Builder s
+word32 :: Word32 -> Builder
 word32 = Builder . pure . Rigid . ArrayBuilder.word32
 
-word64 :: Word64 -> Builder s
+word64 :: Word64 -> Builder
 word64 = Builder . pure . Rigid . ArrayBuilder.word64
 
-int8 :: Int8 -> Builder s
+int8 :: Int8 -> Builder
 int8 = Builder . pure . Rigid . ArrayBuilder.int8
 
-int16 :: Int16 -> Builder s
+int16 :: Int16 -> Builder
 int16 = Builder . pure . Rigid . ArrayBuilder.int16
 
-int32 :: Int32 -> Builder s
+int32 :: Int32 -> Builder
 int32 = Builder . pure . Rigid . ArrayBuilder.int32
 
-int64 :: Int64 -> Builder s
+int64 :: Int64 -> Builder
 int64 = Builder . pure . Rigid . ArrayBuilder.int64

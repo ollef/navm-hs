@@ -1,9 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE UnliftedNewtypes #-}
 
 module ArrayBuilder where
 
@@ -21,85 +19,96 @@ import Offset (Offset (Offset))
 import qualified System.ByteOrder as ByteOrder
 import Prelude
 
-data ArrayBuilder s = ArrayBuilder
-  { size :: !Offset
-  , function :: !((# State# s, Addr# #) -> State# s)
+newtype ArrayBuilder = ArrayBuilder (forall s. Inner s)
+
+data Inner s = Inner
+  { innerSize :: !Offset
+  , innerFunction :: !((# State# s, Addr# #) -> State# s)
   }
 
-st :: Offset -> (Ptr Word8 -> ST s ()) -> ArrayBuilder s
-st bytes f =
-  ArrayBuilder bytes $ \(# s, addr #) -> do
-    let (ST inner) = f (Ptr addr)
-    let !(# s', () #) = inner s
-    s'
+size :: ArrayBuilder -> Offset
+size (ArrayBuilder ab) = innerSize ab
 
-run :: (forall s. ArrayBuilder s) -> PrimArray Word8
+function :: ArrayBuilder -> ((# State# s, Addr# #) -> State# s)
+function (ArrayBuilder ab) = innerFunction ab
+
+st :: Offset -> (forall s. Ptr Word8 -> ST s ()) -> ArrayBuilder
+st bytes f =
+  ArrayBuilder $
+    Inner bytes $ \(# s, addr #) -> do
+      let (ST inner) = f (Ptr addr)
+      let !(# s', () #) = inner s
+      s'
+
+run :: ArrayBuilder -> PrimArray Word8
 run builder =
   runST $ do
-    let ArrayBuilder {size, function} = builder
-    arr <- newPinnedPrimArray $ fromIntegral size
+    arr <- newPinnedPrimArray $ fromIntegral $ size builder
     let !(Ptr startAddr) = mutablePrimArrayContents arr
     ST
       ( \s -> do
-          let !s' = function (# s, startAddr #)
+          let !s' = function builder (# s, startAddr #)
           (# s', () #)
       )
     unsafeFreezePrimArray arr
 
-instance Semigroup (ArrayBuilder m) where
-  ArrayBuilder size1 f <> ArrayBuilder size2 g =
-    ArrayBuilder
-      (size1 + size2)
-      ( \x@(# _, addr #) -> do
-          let !s = f x
-              !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce size1)
-          g (# s, addr' #)
-      )
+instance Semigroup ArrayBuilder where
+  ab1 <> ab2 =
+    ArrayBuilder $
+      Inner
+        (size ab1 + size ab2)
+        ( \x@(# _, addr #) -> do
+            let !s = function ab1 x
+                !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce $ size ab1)
+            function ab2 (# s, addr' #)
+        )
 
-instance Monoid (ArrayBuilder m) where
+instance Monoid ArrayBuilder where
   mempty = skip 0
   mconcat = foldl' (<>) mempty
 
-skip :: Offset -> ArrayBuilder s
-skip size = ArrayBuilder (coerce size) $ \(# s, _addr #) -> s
+skip :: Offset -> ArrayBuilder
+skip bytes = ArrayBuilder $ Inner (coerce bytes) $ \(# s, _addr #) -> s
 
-overlay :: ArrayBuilder s -> ArrayBuilder s -> ArrayBuilder s
-overlay (ArrayBuilder size1 function1) (ArrayBuilder size2 function2) =
-  ArrayBuilder (max size1 size2) $ \(# s, addr #) -> do
-    let !s' = function1 (# s, addr #)
-    function2 (# s', addr #)
+overlay :: ArrayBuilder -> ArrayBuilder -> ArrayBuilder
+overlay ab1 ab2 =
+  ArrayBuilder $
+    Inner (max (size ab1) (size ab2)) $ \(# s, addr #) -> do
+      let !s' = function ab1 (# s, addr #)
+      function ab2 (# s', addr #)
 
-overlays :: [ArrayBuilder s] -> ArrayBuilder s
+overlays :: [ArrayBuilder] -> ArrayBuilder
 overlays builders =
-  ArrayBuilder
-    (foldl' (\n (ArrayBuilder size _) -> max n size) 0 builders)
-    (go builders)
+  ArrayBuilder $
+    Inner
+      (foldl' (\n (ArrayBuilder (Inner size_ _)) -> max n size_) 0 builders)
+      (go builders)
   where
     go [] (# s, _ #) = s
-    go (ArrayBuilder _ function : builders') arg@(# _, addr #) = do
-      let !s' = function arg
+    go (ArrayBuilder (Inner _ function_) : builders') arg@(# _, addr #) = do
+      let !s' = function_ arg
       go builders' (# s', addr #)
 
-word8 :: Word8 -> ArrayBuilder s
+word8 :: Word8 -> ArrayBuilder
 word8 w = st 1 $ \ptr -> writeOffPtr ptr 0 w
 
-word16 :: Word16 -> ArrayBuilder s
+word16 :: Word16 -> ArrayBuilder
 word16 w = st 2 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
-word32 :: Word32 -> ArrayBuilder s
+word32 :: Word32 -> ArrayBuilder
 word32 w = st 4 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
-word64 :: Word64 -> ArrayBuilder s
+word64 :: Word64 -> ArrayBuilder
 word64 w = st 8 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
-int8 :: Int8 -> ArrayBuilder s
+int8 :: Int8 -> ArrayBuilder
 int8 = word8 . fromIntegral
 
-int16 :: Int16 -> ArrayBuilder s
+int16 :: Int16 -> ArrayBuilder
 int16 = word16 . fromIntegral
 
-int32 :: Int32 -> ArrayBuilder s
+int32 :: Int32 -> ArrayBuilder
 int32 = word32 . fromIntegral
 
-int64 :: Int64 -> ArrayBuilder s
+int64 :: Int64 -> ArrayBuilder
 int64 = word64 . fromIntegral

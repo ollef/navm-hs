@@ -1,6 +1,4 @@
-{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -18,7 +16,7 @@ import Target.X86.Assembly
 import Target.X86.MachineCode.Builder (Builder)
 import qualified Target.X86.MachineCode.Builder as Builder
 
-assembleInstructions :: [Instruction Register] -> Builder s
+assembleInstructions :: [Instruction Register] -> Builder
 assembleInstructions =
   mconcat . map assembleInstruction
 
@@ -31,23 +29,23 @@ instance Bits a => Semigroup (Or a) where
 instance (Bits a, Num a) => Monoid (Or a) where
   mempty = 0
 
-data Description s = Description
+data Description = Description
   { rex :: !(Maybe (Or Word8))
   , opcode_ :: !(Or Word8)
   , modRM :: !(Maybe (Or Word8))
   , sib :: !(Maybe (Or Word8))
-  , displacement_ :: !(Builder s)
-  , immediate_ :: !(Builder s)
+  , displacement_ :: !Builder
+  , immediate_ :: !Builder
   }
 
-instance Semigroup (Description s) where
+instance Semigroup Description where
   Description rex1 opcode1 modRM1 sib1 displacement1 immediate1 <> Description rex2 opcode2 modRM2 sib2 displacement2 immediate2 =
     Description (rex1 <> rex2) (opcode1 <> opcode2) (modRM1 <> modRM2) (sib1 <> sib2) (displacement1 <> displacement2) (immediate1 <> immediate2)
 
-instance Monoid (Description s) where
+instance Monoid Description where
   mempty = Description {rex = Nothing, opcode_ = mempty, modRM = Nothing, sib = Nothing, displacement_ = mempty, immediate_ = mempty}
 
-flattenDescription :: Description s -> Builder s
+flattenDescription :: Description -> Builder
 flattenDescription Description {..} =
   foldMap (Builder.word8 . (.|. 0b0100_0000) . getOr) rex
     <> Builder.word8 (getOr opcode_)
@@ -56,10 +54,10 @@ flattenDescription Description {..} =
     <> displacement_
     <> immediate_
 
-opcode :: Word8 -> Description s
+opcode :: Word8 -> Description
 opcode o = mempty {opcode_ = Or o}
 
-opcodeReg :: Register -> Description s
+opcodeReg :: Register -> Description
 opcodeReg reg =
   (opcode regBits) {rex = if rexBit == 0 then Nothing else Just $ Or rexBit}
   where
@@ -67,16 +65,16 @@ opcodeReg reg =
     rexBit = regWord `shiftR` 3
     regBits = regWord .&. 0b111
 
-immediate :: Builder s -> Description s
+immediate :: Builder -> Description
 immediate i = mempty {immediate_ = i}
 
-operandSize64 :: Description s
+operandSize64 :: Description
 operandSize64 = mempty {rex = Just 0b1000}
 
-modRMMod :: Word8 -> Description s
+modRMMod :: Word8 -> Description
 modRMMod bits = mempty {modRM = Just $ Or $ bits `shiftL` 6}
 
-modRMRm :: Word8 -> Description s
+modRMRm :: Word8 -> Description
 modRMRm rm =
   mempty
     { rex = if rexBit == 0 then Nothing else Just $ Or rexBit
@@ -86,23 +84,23 @@ modRMRm rm =
     rexBit = rm `shiftR` 3
     rmBits = rm .&. 0b111
 
-modRMRmReg :: Register -> Description s
+modRMRmReg :: Register -> Description
 modRMRmReg reg =
   modRMMod 0b11
     <> modRMRm (fromEnum8 reg)
 
-modRMRmNone :: Description s
+modRMRmNone :: Description
 modRMRmNone = modRMRm 0b101
 
-modRMRmSI :: Description s
+modRMRmSI :: Description
 modRMRmSI = modRMRm 0b100
 
 -- | This is the /digit in opcode description, e.g. /4.
-modRMExt :: Word8 -> Description s
+modRMExt :: Word8 -> Description
 modRMExt ext =
   mempty {modRM = Just $ Or $ ext `shiftL` 3}
 
-modRMReg :: Register -> Description s
+modRMReg :: Register -> Description
 modRMReg reg =
   (modRMExt regBits)
     { rex = if rexBit == 0 then Nothing else Just $ Or $ rexBit `shiftL` 2
@@ -112,7 +110,7 @@ modRMReg reg =
     rexBit = regWord `shiftR` 3
     regBits = regWord .&. 0b111
 
-sibBase :: Register -> Description s
+sibBase :: Register -> Description
 sibBase reg =
   mempty
     { rex = if rexBit == 0 then Nothing else Just $ Or rexBit
@@ -123,10 +121,10 @@ sibBase reg =
     rexBit = regWord `shiftR` 3
     baseBits = regWord .&. 0b111
 
-sibBaseNone :: Description s
+sibBaseNone :: Description
 sibBaseNone = sibBase RBP
 
-sibIndex :: Register -> Description s
+sibIndex :: Register -> Description
 sibIndex reg =
   mempty
     { rex = if rexBit == 0 then Nothing else Just $ Or $ rexBit `shiftL` 1
@@ -137,16 +135,16 @@ sibIndex reg =
     rexBit = regWord `shiftR` 3
     indexBits = regWord .&. 0b111
 
-sibIndexNone :: Description s
+sibIndexNone :: Description
 sibIndexNone = sibIndex RSP
 
-sibScale :: Scale -> Description s
+sibScale :: Scale -> Description
 sibScale scale =
   mempty {sib = if scaleWord == 0 then Nothing else Just $ Or $ scaleWord `shiftL` 6}
   where
     scaleWord = fromEnum8 scale
 
-address :: Int -> Address Register -> Description s
+address :: Int -> Address Register -> Description
 address offset addr =
   case addr of
     Address (Absolute (Just base) (Just (RSP, Scale1))) label disp
@@ -215,7 +213,7 @@ address offset addr =
     -- TODO relocation
     labelDisplacement (Just _) _ = 0
 
-assembleInstruction :: Instruction Register -> Builder s
+assembleInstruction :: Instruction Register -> Builder
 assembleInstruction instruction =
   case instruction of
     Add (Register dst) _ (Register src) ->
@@ -374,7 +372,7 @@ fromEnum8 :: Enum a => a -> Word8
 fromEnum8 x =
   fromIntegral (fromEnum x)
 
-type instance RegisterType (Builder s) = Register
+type instance RegisterType Builder = Register
 
-instance FromInstruction (Builder s) where
+instance FromInstruction Builder where
   fromInstruction = assembleInstruction
