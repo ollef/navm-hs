@@ -38,6 +38,9 @@ fromEnum8 x =
 instance FromRegister Class where
   fromRegister = exact
 
+instance Show Class where
+  show = show . registers
+
 mapWithClass :: (Class -> reg -> reg') -> Instruction reg -> Instruction reg'
 mapWithClass f instruction =
   case instruction of
