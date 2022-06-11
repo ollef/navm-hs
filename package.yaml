@@ -9,6 +9,7 @@ maintainer:          fredriksson.olle@gmail.com
 copyright:           2021 Olle Fredriksson
 extra-source-files:
 - README.md
+- fourmolu.yaml
 
 dependencies:
   - base >= 4.7 && < 5
