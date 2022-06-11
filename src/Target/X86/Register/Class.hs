@@ -58,13 +58,13 @@ constraints :: Eq reg => Instruction reg -> Maybe [Constraint reg]
 constraints instruction =
   case instruction of
     Add dst src1 _src2 -> sameOperands dst src1
-    Mul {} -> mempty
-    Jmp {} -> mempty
-    Call {} -> mempty
-    Ret -> mempty
-    Mov {} -> mempty
-    MovImmediate64 {} -> mempty
-    Define {} -> mempty
+    Mul {} -> Just mempty
+    Jmp {} -> Just mempty
+    Call {} -> Just mempty
+    Ret -> Just mempty
+    Mov {} -> Just mempty
+    MovImmediate64 {} -> Just mempty
+    Define {} -> Just mempty
 
 sameRegisters :: Eq reg => reg -> reg -> [Constraint reg]
 sameRegisters reg1 reg2
