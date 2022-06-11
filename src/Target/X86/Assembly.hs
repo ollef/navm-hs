@@ -5,8 +5,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Target.X86.Assembly (
-  module Target.X86.Assembly,
-  module X,
+  module Target.X86.Assembly
+  , module X
 ) where
 
 import Control.Applicative

@@ -84,7 +84,7 @@ sameOperands (Memory _) _ = Nothing
 sameAddresses :: Eq reg => Address reg -> Address reg -> Maybe [Constraint reg]
 sameAddresses (Address base1 label1 imm1) (Address base2 label2 imm2)
   | imm1 == imm2 && label1 == label2 =
-    sameBases base1 base2
+      sameBases base1 base2
   | otherwise = Nothing
 
 sameBases :: Eq reg => Base reg -> Base reg -> Maybe [Constraint reg]

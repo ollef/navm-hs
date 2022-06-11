@@ -23,11 +23,11 @@ import Target.X86.Random
 main :: IO ()
 main =
   Hedgehog.defaultMain
-    [ Hedgehog.checkParallel $
-        Hedgehog.Group
+    [ Hedgehog.checkParallel
+        $ Hedgehog.Group
           "X86"
-          $ assembleSelectedX86Instructions
-            <> assembleRandomX86Instructions
+        $ assembleSelectedX86Instructions
+          <> assembleRandomX86Instructions
     ]
 
 assembleSelectedX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
