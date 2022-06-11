@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module ArrayBuilder where
 
@@ -22,15 +24,15 @@ import Prelude
 newtype ArrayBuilder = ArrayBuilder (forall s. Inner s)
 
 data Inner s = Inner
-  { innerSize :: !Offset
-  , innerFunction :: !((# State# s, Addr# #) -> State# s)
+  { size :: !Offset
+  , function :: !((# State# s, Addr# #) -> State# s)
   }
 
 size :: ArrayBuilder -> Offset
-size (ArrayBuilder ab) = innerSize ab
+size (ArrayBuilder ab) = ab.size
 
 function :: ArrayBuilder -> ((# State# s, Addr# #) -> State# s)
-function (ArrayBuilder ab) = innerFunction ab
+function (ArrayBuilder ab) = ab.function
 
 st :: Offset -> (forall s. Ptr Word8 -> ST s ()) -> ArrayBuilder
 st bytes f =

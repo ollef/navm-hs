@@ -3,7 +3,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Target.X86.MachineCode.Builder where
 
@@ -72,7 +74,7 @@ define label = Builder $ pure $ Define label
 
 useRelativeToEnd :: Label -> LabelUseSize -> Int -> Builder
 useRelativeToEnd label labelSize displacement =
-  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = - byteSize, size = labelSize, displacement}]
+  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = -byteSize, size = labelSize, displacement}]
   where
     byteSize = useSizeBytes labelSize
 
@@ -86,7 +88,7 @@ instance Monoid Valid where
   mempty = Always
 
 data State = State
-  { offsets :: !Offset.Flexible
+  { offset :: !Offset.Flexible
   , definitions :: HashMap Label Offset.Flexible
   , rigidUses :: HashMap Label [(Offset, LabelUse)]
   , flexibleUseCount :: !Int
@@ -96,9 +98,9 @@ data State = State
 rewind :: State -> State
 rewind state =
   State
-    { offsets = mempty
-    , definitions = definitions state
-    , rigidUses = rigidUses state
+    { offset = mempty
+    , definitions = state.definitions
+    , rigidUses = state.rigidUses
     , flexibleUseCount = 0
     , valid = mempty
     }
@@ -107,40 +109,39 @@ rigidize :: [Part] -> Builder -> State -> Maybe ([Part], State)
 rigidize [] (Builder acc) state = Just (Foldable.toList acc, state)
 rigidize (part : parts) acc state =
   case part of
-    Rigid builder -> rigidize parts (appendPart acc part) state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
+    Rigid builder -> rigidize parts (appendPart acc part) state {offset = offset (ArrayBuilder.size builder) state.offset}
     Define label
-      | Just _ <- Offset.rigid $ offsets state -> rigidize parts acc state {definitions = HashMap.insert label (offsets state) $ definitions state}
-      | otherwise -> rigidize parts (appendPart acc part) state {definitions = HashMap.insert label (offsets state) $ definitions state}
+      | Just _ <- Offset.rigid state.offset -> rigidize parts acc state {definitions = HashMap.insert label state.offset state.definitions}
+      | otherwise -> rigidize parts (appendPart acc part) state {definitions = HashMap.insert label state.offset state.definitions}
     Use label labelUse ->
-      case HashMap.lookup label $ definitions state of
-        Nothing -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
+      case HashMap.lookup label state.definitions of
+        Nothing -> rigidize parts (appendPart acc part) state {valid = Possibly <> state.valid}
         Just definition
           | alwaysValid definition labelUse
-            , Just o <- Offset.rigid $ offsets state ->
-            rigidize parts acc state {rigidUses = HashMap.insertWith (<>) label [(o, labelUse)] $ rigidUses state}
-          | possiblyValid definition labelUse -> rigidize parts (appendPart acc part) state {valid = Possibly <> valid state}
+          , Just o <- Offset.rigid state.offset ->
+              rigidize parts acc state {rigidUses = HashMap.insertWith (<>) label [(o, labelUse)] state.rigidUses}
+          | possiblyValid definition labelUse -> rigidize parts (appendPart acc part) state {valid = Possibly <> state.valid}
           | otherwise -> Nothing
     Flexible parts1 parts2 ->
-      case (rigidize parts1 mempty state {valid = mempty}, rigidize parts2 mempty state {valid = valid state}) of
+      case (rigidize parts1 mempty state {valid = mempty}, rigidize parts2 mempty state {valid = state.valid}) of
         (Nothing, Nothing) -> Nothing
         (Nothing, Just (parts2', state2)) -> rigidize parts (appendParts acc parts2') state2
         (Just (parts1', state1@State {valid = Possibly}), Just (parts2', state2)) -> rigidize parts (appendPart acc $ Flexible parts1' parts2') state'
           where
             state' =
               state
-                { offsets =
-                    Offset.choice (offsets state1) (offsets state2)
-                , valid = valid state2
-                , flexibleUseCount = 1 + Prelude.max (flexibleUseCount state1) (flexibleUseCount state2)
+                { offset = Offset.choice state1.offset state2.offset
+                , valid = state2.valid
+                , flexibleUseCount = 1 + Prelude.max state1.flexibleUseCount state2.flexibleUseCount
                 }
         (Just (parts1', state1@State {valid = Possibly}), Nothing) -> rigidize parts (appendParts acc parts1') state1
-        (Just (parts1', state1@State {valid = Always}), _) -> rigidize parts (appendParts acc parts1') state1 {valid = valid state}
+        (Just (parts1', state1@State {valid = Always}), _) -> rigidize parts (appendParts acc parts1') state1 {valid = state.valid}
   where
     alwaysValid :: Offset.Flexible -> LabelUse -> Bool
     alwaysValid definition LabelUse {size = useSize, displacement} =
       minUseBound <= relativeMin && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets (Offset.offset (coerce displacement) definition) $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets (Offset.offset (coerce displacement) definition) state.offset
         (minUseBound, maxUseBound) = useBounds useSize
 
     possiblyValid :: Offset.Flexible -> LabelUse -> Bool
@@ -148,7 +149,7 @@ rigidize (part : parts) acc state =
       minUseBound <= relativeMin && relativeMin <= maxUseBound
         || minUseBound <= relativeMax && relativeMax <= maxUseBound
       where
-        (relativeMin, relativeMax) = relativeOffsets (Offset.offset (coerce displacement) definition) $ offsets state
+        (relativeMin, relativeMax) = relativeOffsets (Offset.offset (coerce displacement) definition) state.offset
         (minUseBound, maxUseBound) = useBounds useSize
 
     relativeOffsets (Offset.Flexible defMin defMax) (Offset.Flexible useMin useMax) =
@@ -166,7 +167,7 @@ selectAlternative :: Bool -> [Part] -> Builder -> State -> Maybe ([Part], State)
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
-    Rigid builder -> selectAlternative alternative parts (appendPart acc part) $ state {offsets = offset (ArrayBuilder.size builder) $ offsets state}
+    Rigid builder -> selectAlternative alternative parts (appendPart acc part) $ state {offset = offset (ArrayBuilder.size builder) state.offset}
     Define _ -> error "selectAlternative: unexpected Define"
     Use _ _ -> error "selectAlternative: unexpected Use"
     Flexible parts0 parts1
@@ -178,7 +179,7 @@ toArrayBuilder (Builder initialParts) =
   go
     (Foldable.toList initialParts)
     State
-      { offsets = mempty
+      { offset = mempty
       , definitions = mempty
       , rigidUses = mempty
       , flexibleUseCount = 0
@@ -186,32 +187,33 @@ toArrayBuilder (Builder initialParts) =
       }
   where
     go :: [Part] -> State -> (ArrayBuilder, HashMap Label (Offset, [(Offset, LabelUse)]))
-    go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
-    go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) (definitions state) (rigidUses state))
+    go [] state = (mempty, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) state.definitions state.rigidUses)
+    go [Rigid builder] state = (builder, HashMap.intersectionWith (\(Offset.Flexible o _) uses -> (o, uses)) state.definitions state.rigidUses)
     go parts state = case rigidize parts mempty $ rewind state of
       Nothing -> error "toBuilder: impossible"
       Just (parts', state')
-        | flexibleUseCount state' > 0
-          , flexibleUseCount state == flexibleUseCount state' ->
-          -- We're not making any progress: see if selecting alternatives in
-          -- the first flexible use gets us unstuck.
-          case catMaybes [selectAlternative alternative parts' mempty $ rewind state' | alternative <- [False, True]] of
-            [] -> error "toBuilder: no alternative works"
-            (parts'', state'') : _ -> go parts'' state''
+        | state'.flexibleUseCount > 0
+        , state.flexibleUseCount == state'.flexibleUseCount ->
+            -- We're not making any progress: see if selecting alternatives in
+            -- the first flexible use gets us unstuck.
+            case catMaybes [selectAlternative alternative parts' mempty $ rewind state' | alternative <- [False, True]] of
+              [] -> error "toBuilder: no alternative works"
+              (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
 
 run :: Builder -> MachineCode
 run builder =
   MachineCode $
     ArrayBuilder.run $
-      ArrayBuilder.overlays $ instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
+      ArrayBuilder.overlays $
+        instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
   where
     (instructions, labels) = toArrayBuilder builder
     useBuilder definition uses =
       ArrayBuilder.overlays
-        [ ArrayBuilder.skip (useOffset + writeOffset use) <> case size use of
-          Int8 -> ArrayBuilder.int8 $ fromIntegral $ definition + coerce (displacement use) - useOffset
-          Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition + coerce (displacement use) - useOffset
+        [ ArrayBuilder.skip (useOffset + use.writeOffset) <> case use.size of
+          Int8 -> ArrayBuilder.int8 $ fromIntegral $ definition + coerce use.displacement - useOffset
+          Int32 -> ArrayBuilder.int32 $ fromIntegral $ definition + coerce use.displacement - useOffset
         | (useOffset, use) <- uses
         ]
 

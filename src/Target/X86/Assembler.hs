@@ -1,9 +1,11 @@
 {-# LANGUAGE BinaryLiterals #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE NoFieldSelectors #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Target.X86.Assembler where
@@ -31,11 +33,11 @@ instance (Bits a, Num a) => Monoid (Or a) where
 
 data Description = Description
   { rex :: !(Maybe (Or Word8))
-  , opcode_ :: !(Or Word8)
+  , opcode :: !(Or Word8)
   , modRM :: !(Maybe (Or Word8))
   , sib :: !(Maybe (Or Word8))
-  , displacement_ :: !Builder
-  , immediate_ :: !Builder
+  , displacement :: !Builder
+  , immediate :: !Builder
   }
 
 instance Semigroup Description where
@@ -43,19 +45,19 @@ instance Semigroup Description where
     Description (rex1 <> rex2) (opcode1 <> opcode2) (modRM1 <> modRM2) (sib1 <> sib2) (displacement1 <> displacement2) (immediate1 <> immediate2)
 
 instance Monoid Description where
-  mempty = Description {rex = Nothing, opcode_ = mempty, modRM = Nothing, sib = Nothing, displacement_ = mempty, immediate_ = mempty}
+  mempty = Description {rex = Nothing, opcode = mempty, modRM = Nothing, sib = Nothing, displacement = mempty, immediate = mempty}
 
 flattenDescription :: Description -> Builder
-flattenDescription Description {..} =
-  foldMap (Builder.word8 . (.|. 0b0100_0000) . getOr) rex
-    <> Builder.word8 (getOr opcode_)
-    <> foldMap (Builder.word8 . getOr) modRM
-    <> foldMap (Builder.word8 . getOr) sib
-    <> displacement_
-    <> immediate_
+flattenDescription d =
+  foldMap (Builder.word8 . (.|. 0b0100_0000) . (.getOr)) d.rex
+    <> Builder.word8 d.opcode.getOr
+    <> foldMap (Builder.word8 . (.getOr)) d.modRM
+    <> foldMap (Builder.word8 . (.getOr)) d.sib
+    <> d.displacement
+    <> d.immediate
 
 opcode :: Word8 -> Description
-opcode o = mempty {opcode_ = Or o}
+opcode o = mempty {opcode = Or o}
 
 opcodeReg :: Register -> Description
 opcodeReg reg =
@@ -66,7 +68,7 @@ opcodeReg reg =
     regBits = regWord .&. 0b111
 
 immediate :: Builder -> Description
-immediate i = mempty {immediate_ = i}
+immediate i = mempty {immediate = i}
 
 operandSize64 :: Description
 operandSize64 = mempty {rex = Just 0b1000}
@@ -149,7 +151,7 @@ address offset addr =
   case addr of
     Address (Absolute (Just base) (Just (RSP, Scale1))) label disp
       | base /= RSP ->
-        address offset $ Address (Absolute (Just RSP) (Just (base, Scale1))) label disp
+          address offset $ Address (Absolute (Just RSP) (Just (base, Scale1))) label disp
     Address (Absolute Nothing Nothing) label disp ->
       modRMMod 0b00
         <> modRMRmSI
@@ -163,13 +165,14 @@ address offset addr =
         <> sibIndexNone
     Address (Absolute (Just base) (Just (index, scale))) Nothing 0
       | base /= RBP && base /= R13 ->
-        modRMMod 0b00
-          <> modRMRmSI
-          <> sibBase base
-          <> sibIndex index
-          <> sibScale scale
+          modRMMod 0b00
+            <> modRMRmSI
+            <> sibBase base
+            <> sibIndex index
+            <> sibScale scale
     Address (Absolute (Just base) (Just (index, scale))) Nothing (toImm8 -> Just disp8) ->
-      modRMMod 0b01 <> modRMRmSI
+      modRMMod 0b01
+        <> modRMRmSI
         <> sibBase base
         <> sibIndex index
         <> sibScale scale
@@ -192,7 +195,7 @@ address offset addr =
         <> modRMRmSI
         <> sibBase base
         <> sibIndexNone
-        <> immediate (Builder.int32 $labelDisplacement label disp)
+        <> immediate (Builder.int32 $ labelDisplacement label disp)
     Address (Absolute Nothing (Just (index, scale))) label disp ->
       modRMMod 0b00
         <> modRMRmSI
