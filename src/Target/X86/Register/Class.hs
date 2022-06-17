@@ -1,35 +1,31 @@
-{-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Target.X86.Register.Class where
 
-import Data.Bits
+import Data.BitSet (BitSet)
+import qualified Data.BitSet as BitSet
 import Data.Word
+import GHC.Exts (IsList (..))
 import Target.X86.Assembly
 import Prelude hiding (any)
 
-data Class = Class {mask :: !Word8, pattern :: !Word8}
+newtype Class = Class {toBitSet :: BitSet Register}
+  deriving (Eq, Show)
+
+instance IsList Class where
+  type Item Class = Register
+  toList (Class c) = BitSet.toList c
+  fromList = Class . BitSet.fromList
 
 exact :: Register -> Class
-exact reg = Class {mask = 0b1111, pattern = fromEnum8 reg}
+exact = Class . BitSet.singleton
 
 any :: Class
-any = Class {mask = 0, pattern = 0}
+any = Class BitSet.full
 
 contains :: Register -> Class -> Bool
-contains reg Class {mask, pattern} = fromEnum8 reg .&. mask == pattern
-
-registers :: Class -> [Register]
-registers Class {mask, pattern} = do
-  b3 <- b 3
-  b2 <- b 2
-  b1 <- b 1
-  b0 <- b 0
-  pure $ toEnum $ fromIntegral $ b3 .|. b2 .|. b1 .|. b0
-  where
-    b i
-      | testBit mask i = [bit i .&. pattern]
-      | otherwise = [0, bit i]
+contains reg (Class c) = BitSet.member reg c
 
 fromEnum8 :: Enum a => a -> Word8
 fromEnum8 x =
@@ -37,9 +33,6 @@ fromEnum8 x =
 
 instance FromRegister Class where
   fromRegister = exact
-
-instance Show Class where
-  show = show . registers
 
 mapWithClass :: (Class -> reg -> reg') -> Instruction reg -> Instruction reg'
 mapWithClass f instruction =
