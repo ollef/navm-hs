@@ -45,10 +45,10 @@ toList :: Enum a => BitSet a -> [a]
 toList (BitSet i) = go 0 $ integerWords i
   where
     go :: Enum a => Int -> [Word] -> [a]
-    go _ [] = []
-    go offset (w : ws) = go' offset (finiteBitSize w) w ws
+    go !_ [] = []
+    go !offset (w : ws) = go' offset (finiteBitSize w) w ws
     go' :: Enum a => Int -> Int -> Word -> [Word] -> [a]
-    go' offset bitsLeft word rest
+    go' !offset !bitsLeft !word rest
       | trailingZeros == finiteBitSize word = go (offset + bitsLeft) rest
       | bitsLeft == 0 = go offset rest
       | otherwise = do
