@@ -11,7 +11,7 @@ import Register (FromRegister (..), RegisterType)
 import Target.X86.Assembly
 import Prelude hiding (any)
 
-newtype Class = Class {toBitSet :: BitSet Register}
+newtype Class = Class {bitSet :: BitSet Register}
   deriving (Eq, Show)
 
 instance IsList Class where

@@ -84,7 +84,7 @@ initialState :: AllocationState
 initialState =
   AllocationState
     { active = mempty
-    , free = BitSet.delete X86.rsp $ Register.Class.toBitSet Register.Class.any
+    , free = BitSet.delete X86.rsp Register.Class.any.bitSet
     , usedSlots = mempty
     , allocation = mempty
     }
