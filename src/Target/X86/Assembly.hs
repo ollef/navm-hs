@@ -12,11 +12,11 @@ module Target.X86.Assembly (
 import Control.Applicative
 import Data.Bifunctor
 import Data.Int
-import Data.Kind
 import qualified Data.Map as Map
 import Data.Maybe
 import GHC.Exts
 import Label (Label)
+import Register (FromRegister (..), RegisterType)
 import Target.X86.Register as X
 
 data Instruction reg
@@ -204,8 +204,6 @@ instance Num (JmpOperand reg) where
   abs = error "abs"
   signum = error "signum"
 
-type family RegisterType a :: Type
-
 type instance RegisterType (Address reg) = reg
 
 type instance RegisterType (Operand reg) = reg
@@ -218,13 +216,13 @@ type instance RegisterType [a] = RegisterType a
 
 type instance RegisterType (Const a b) = RegisterType a
 
-instance reg ~ Register => FromRegister (Address reg) where
+instance FromRegister (Address reg) where
   fromRegister r = Address (Absolute (Just r) Nothing) Nothing 0
 
-instance reg ~ Register => FromRegister (Operand reg) where
+instance FromRegister (Operand reg) where
   fromRegister = Register
 
-instance reg ~ Register => FromRegister (JmpOperand reg) where
+instance FromRegister (JmpOperand reg) where
   fromRegister = JmpAbsolute . fromRegister
 
 class FromAddress a where

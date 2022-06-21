@@ -1,13 +1,11 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Register where
 
 import Control.Monad.Reader
 import Control.Monad.ST
 import Data.Hashable
+import Data.Kind (Type)
 import Data.STRef
 
 newtype Virtual = Virtual Int
@@ -41,3 +39,13 @@ runVirtualSupply :: VirtualSupply a -> a
 runVirtualSupply (VirtualSupply s) = runST $ do
   ref <- newSTRef $ Virtual 0
   runReaderT s ref
+
+type family RegisterType a :: Type
+
+class FromRegister a where
+  fromRegister :: RegisterType a -> a
+
+type instance RegisterType Virtual = Virtual
+
+instance FromRegister Virtual where
+  fromRegister = id

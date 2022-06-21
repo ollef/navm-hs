@@ -14,6 +14,7 @@ import Data.Bits
 import Data.Int
 import Data.Word
 import Label
+import Register
 import Target.X86.Assembly
 import Target.X86.MachineCode.Builder (Builder)
 import qualified Target.X86.MachineCode.Builder as Builder

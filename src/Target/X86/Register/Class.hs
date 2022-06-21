@@ -7,6 +7,7 @@ import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
 import Data.Word
 import GHC.Exts (IsList (..))
+import Register (FromRegister (..), RegisterType)
 import Target.X86.Assembly
 import Prelude hiding (any)
 
@@ -30,6 +31,8 @@ contains reg (Class c) = BitSet.member reg c
 fromEnum8 :: Enum a => a -> Word8
 fromEnum8 x =
   fromIntegral (fromEnum x)
+
+type instance RegisterType Class = Register
 
 instance FromRegister Class where
   fromRegister = exact
