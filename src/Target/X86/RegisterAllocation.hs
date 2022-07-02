@@ -104,7 +104,7 @@ allocateRegisters instructions = do
         modify $ \s ->
           s
             { free = free'
-            , active = insertBy (flip $ comparing (.range.end)) registerRange s.active
+            , active = insertBy (comparing (.range.end)) registerRange s.active
             , allocation = HashMap.insert registerRange.register (Register physicalRegister) s.allocation
             }
 
@@ -114,7 +114,7 @@ expireOldIntervals time = do
   let (expiredRanges, active') = span (\registerRange -> registerRange.range.end < time) active
   modify $ \s -> s {active = active'}
   allocation <- gets (.allocation)
-  forM_ expiredRanges $ \expiredRange -> do
+  forM_ expiredRanges $ \expiredRange ->
     case allocation HashMap.! expiredRange.register of
       Register physicalRegister -> modify $ \s -> s {free = BitSet.insert physicalRegister s.free}
       Stack slot -> modify $ \s -> s {usedSlots = BitSet.delete slot s.usedSlots}
@@ -133,7 +133,7 @@ spillAt registerRange = do
               { allocation =
                   HashMap.insert activeRegisterRange.register (Stack slot) $
                     HashMap.insert registerRange.register activeRegisterAllocation allocation
-              , active = insertBy (flip $ comparing (.range.end)) registerRange active'
+              , active = insertBy (comparing (.range.end)) registerRange active'
               }
     _ -> modify $ \s -> s {allocation = HashMap.insert registerRange.register (Stack slot) allocation}
 
