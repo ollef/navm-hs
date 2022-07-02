@@ -21,23 +21,22 @@ import Offset (Offset (Offset))
 import qualified System.ByteOrder as ByteOrder
 import Prelude
 
-newtype ArrayBuilder = ArrayBuilder (forall s. Inner s)
-
-data Inner s = Inner
+data ArrayBuilder = ArrayBuilder
   { size :: !Offset
-  , function :: !((# State# s, Addr# #) -> State# s)
+  , function :: !(forall s. (# State# s, Addr# #) -> State# s)
   }
 
 size :: ArrayBuilder -> Offset
-size (ArrayBuilder ab) = ab.size
+size ab = ab.size
 
 function :: ArrayBuilder -> ((# State# s, Addr# #) -> State# s)
-function (ArrayBuilder ab) = ab.function
+function (ArrayBuilder _ f) = f
 
 st :: Offset -> (forall s. Ptr Word8 -> ST s ()) -> ArrayBuilder
 st bytes f =
-  ArrayBuilder $
-    Inner bytes $ \(# s, addr #) -> do
+  ArrayBuilder
+    bytes
+    $ \(# s, addr #) -> do
       let (ST inner) = f (Ptr addr)
       let !(# s', () #) = inner s
       s'
@@ -56,38 +55,37 @@ run builder =
 
 instance Semigroup ArrayBuilder where
   ab1 <> ab2 =
-    ArrayBuilder $
-      Inner
-        (size ab1 + size ab2)
-        ( \x@(# _, addr #) -> do
-            let !s = function ab1 x
-                !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce $ size ab1)
-            function ab2 (# s, addr' #)
-        )
+    ArrayBuilder
+      (size ab1 + size ab2)
+      ( \x@(# _, addr #) -> do
+          let !s = function ab1 x
+              !(Ptr addr') = advancePtr (Ptr addr :: Ptr Word8) (coerce $ size ab1)
+          function ab2 (# s, addr' #)
+      )
 
 instance Monoid ArrayBuilder where
   mempty = skip 0
   mconcat = foldl' (<>) mempty
 
 skip :: Offset -> ArrayBuilder
-skip bytes = ArrayBuilder $ Inner (coerce bytes) $ \(# s, _addr #) -> s
+skip bytes = ArrayBuilder (coerce bytes) $ \(# s, _addr #) -> s
 
 overlay :: ArrayBuilder -> ArrayBuilder -> ArrayBuilder
 overlay ab1 ab2 =
-  ArrayBuilder $
-    Inner (max (size ab1) (size ab2)) $ \(# s, addr #) -> do
+  ArrayBuilder
+    (max (size ab1) (size ab2))
+    $ \(# s, addr #) -> do
       let !s' = function ab1 (# s, addr #)
       function ab2 (# s', addr #)
 
 overlays :: [ArrayBuilder] -> ArrayBuilder
 overlays builders =
-  ArrayBuilder $
-    Inner
-      (foldl' (\n (ArrayBuilder (Inner size_ _)) -> max n size_) 0 builders)
-      (go builders)
+  ArrayBuilder
+    (foldl' (\n (ArrayBuilder size_ _) -> max n size_) 0 builders)
+    (go builders)
   where
     go [] (# s, _ #) = s
-    go (ArrayBuilder (Inner _ function_) : builders') arg@(# _, addr #) = do
+    go (ArrayBuilder _ function_ : builders') arg@(# _, addr #) = do
       let !s' = function_ arg
       go builders' (# s', addr #)
 
