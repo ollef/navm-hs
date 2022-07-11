@@ -5,6 +5,7 @@ module Target.X86.Register.Class where
 
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
+import Data.Hashable
 import Data.Word
 import GHC.Exts (IsList (..))
 import Register (FromRegister (..), RegisterType)
@@ -12,7 +13,7 @@ import Target.X86.Assembly
 import Prelude hiding (any)
 
 newtype Class = Class {bitSet :: BitSet Register}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Hashable)
 
 instance IsList Class where
   type Item Class = Register
