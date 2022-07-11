@@ -20,21 +20,6 @@ import qualified Register
 import qualified Target.X86.Assembly as X86
 import qualified Target.X86.Register.Class as Register.Class
 
-newtype Occurrence = Occurrence
-  { id :: Int
-  }
-  deriving (Eq, Show)
-
-data Virtual
-  = Physical !X86.Register
-  | Virtual !Register.Virtual
-  deriving (Eq, Show)
-
-data CopyOrInstruction register
-  = Copy !register !register
-  | Instruction !(X86.Instruction register)
-  deriving (Eq, Show)
-
 data LiveRange = LiveRange
   { start :: !Int
   , end :: !Int
