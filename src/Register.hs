@@ -1,8 +1,11 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Register where
 
 import Control.Monad.Reader
+import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as Builder
 import Control.Monad.ST
 import Data.Hashable
 import Data.Kind (Type)
@@ -54,3 +57,6 @@ data VirtualOr physical
   = Physical !physical
   | Virtual !Virtual
   deriving (Eq )
+
+printVirtual :: Virtual -> Builder
+printVirtual (V v) = "%" <> Builder.intDec v
