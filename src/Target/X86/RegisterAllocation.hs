@@ -42,7 +42,7 @@ liveRanges !time instructions =
           instructionRanges = foldl' (\l reg -> HashMap.insert reg (LiveRange time time) l) mempty registers
       HashMap.unionWith (<>) instructionRanges $ liveRanges (time + 1) instructions'
 
-newtype StackSlot = StackSlot Int
+newtype StackSlot = StackSlot Word
   deriving (Show, Enum, Bounded, Eq)
 
 data RegisterRange = RegisterRange
