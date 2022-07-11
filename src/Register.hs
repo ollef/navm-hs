@@ -8,7 +8,7 @@ import Data.Hashable
 import Data.Kind (Type)
 import Data.STRef
 
-newtype Virtual = Virtual Int
+newtype Virtual = V Int
   deriving (Eq, Show, Hashable, Enum)
 
 newtype VirtualSupply a
@@ -35,9 +35,9 @@ fresh = VirtualSupply $ do
     writeSTRef ref next'
     pure next
 
-runVirtualSupply :: VirtualSupply a -> a
-runVirtualSupply (VirtualSupply s) = runST $ do
-  ref <- newSTRef $ Virtual 0
+runVirtualSupply :: Virtual -> VirtualSupply a -> a
+runVirtualSupply v (VirtualSupply s) = runST $ do
+  ref <- newSTRef v
   runReaderT s ref
 
 type family RegisterType a :: Type
@@ -49,3 +49,8 @@ type instance RegisterType Virtual = Virtual
 
 instance FromRegister Virtual where
   fromRegister = id
+
+data VirtualOr physical
+  = Physical !physical
+  | Virtual !Virtual
+  deriving (Eq )
