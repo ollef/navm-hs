@@ -8,11 +8,12 @@ module Data.BitSet where
 
 import Data.Bits
 import Data.Foldable (foldl')
+import Data.Hashable
 import GHC.Exts
 import Prelude hiding (null, words)
 
 newtype BitSet a = BitSet Integer
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Hashable)
 
 instance Enum a => IsList (BitSet a) where
   type Item (BitSet a) = a
