@@ -1,12 +1,16 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Register where
 
 import Control.Monad.Reader
+import Control.Monad.ST
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
-import Control.Monad.ST
 import Data.Hashable
 import Data.Kind (Type)
 import Data.STRef
@@ -56,7 +60,7 @@ instance FromRegister Virtual where
 data VirtualOr physical
   = Physical !physical
   | Virtual !Virtual
-  deriving (Eq )
+  deriving (Eq)
 
 printVirtual :: Virtual -> Builder
 printVirtual (V v) = "%" <> Builder.intDec v
