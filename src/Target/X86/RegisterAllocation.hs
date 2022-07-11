@@ -56,7 +56,7 @@ data Allocation = Register !X86.Register | Stack !StackSlot
 
 data AllocationState = AllocationState
   { active :: [RegisterRange]
-  -- ^ Sorted by _decreasing_ end point
+  -- ^ Sorted by increasing end point
   , free :: !(BitSet X86.Register)
   , usedSlots :: !(BitSet StackSlot)
   , allocation :: HashMap Register.Virtual Allocation
