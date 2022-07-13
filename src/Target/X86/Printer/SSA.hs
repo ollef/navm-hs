@@ -31,6 +31,7 @@ printInstruction printRegister instruction =
         <> printRegister b
         <> ") = mul "
         <> printRegister c
+        <> ", "
         <> printOperand printRegister d
     Jmp o -> "  jmp " <> printJmpOperand printRegister o
     Call o -> "  call " <> printOperand printRegister o
