@@ -36,7 +36,7 @@ empty :: BitSet a
 empty = BitSet 0
 
 full :: forall a. (Enum a, Bounded a) => BitSet a
-full = BitSet $ (1 `shiftL` fromEnum (maxBound :: a)) - 1
+full = BitSet $ (1 `shiftL` (fromEnum (maxBound :: a) + 1)) - 1
 
 singleton :: Enum a => a -> BitSet a
 singleton = BitSet . bit . fromEnum
