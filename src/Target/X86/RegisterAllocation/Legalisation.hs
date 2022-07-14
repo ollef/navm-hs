@@ -63,7 +63,7 @@ splitRegistersWithDifferingOccurrenceClasses ::
   Instruction Register.Virtual ->
   StateT RegisterVariants Register.VirtualSupply [Instruction Register.Virtual]
 splitRegistersWithDifferingOccurrenceClasses instruction = do
-  (instruction', (before, after)) <- runWriterT $ X86.Register.mapWithClass go instruction
+  (instruction', (before, after)) <- runWriterT $ X86.Register.mapMWithClass go instruction
   pure $ before <> [instruction'] <> after
   where
     go occurrence class_ reg = do
