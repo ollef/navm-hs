@@ -39,7 +39,7 @@ full :: forall a. (Enum a, Bounded a) => BitSet a
 full = BitSet $ (1 `shiftL` (fromEnum (maxBound :: a) + 1)) - 1
 
 singleton :: Enum a => a -> BitSet a
-singleton = BitSet . bit . fromEnum
+singleton a = insert a mempty
 
 fromList :: Enum a => [a] -> BitSet a
 fromList = foldl' (flip insert) mempty
