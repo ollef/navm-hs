@@ -87,7 +87,7 @@ intersection :: BitSet a -> BitSet a -> BitSet a
 intersection (BitSet i) (BitSet j) = BitSet $ i .&. j
 
 difference :: BitSet a -> BitSet a -> BitSet a
-difference (BitSet i) (BitSet j) = BitSet $ i `xor` j
+difference (BitSet i) (BitSet j) = BitSet $ i `xor` (i .&. j)
 
 integerWords :: Integer -> [Word]
 integerWords 0 = []
