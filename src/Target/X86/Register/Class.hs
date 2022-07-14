@@ -5,42 +5,16 @@ module Target.X86.Register.Class where
 
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
-import Data.Hashable
-import Data.Word
-import GHC.Exts (IsList (..))
-import Register (FromRegister (..), RegisterType)
 import Target.X86.Assembly
 import Prelude hiding (any)
 
-newtype Class = Class {bitSet :: BitSet Register}
-  deriving (Eq, Show, Hashable)
-
-instance IsList Class where
-  type Item Class = Register
-  toList (Class c) = BitSet.toList c
-  fromList = Class . BitSet.fromList
-
-exact :: Register -> Class
-exact = Class . BitSet.singleton
-
-any :: Class
-any = Class BitSet.full
-
-contains :: Register -> Class -> Bool
-contains reg (Class c) = BitSet.member reg c
-
-fromEnum8 :: Enum a => a -> Word8
-fromEnum8 x =
-  fromIntegral (fromEnum x)
-
-type instance RegisterType Class = Register
-
-instance FromRegister Class where
-  fromRegister = exact
+type Class = BitSet Register
 
 data Occurrence = Definition | Use
   deriving (Eq, Show)
 
+any :: Class
+any = BitSet.full
 mapWithClass ::
   Monad m =>
   (Occurrence -> Class -> reg -> m reg') ->

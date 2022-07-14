@@ -9,6 +9,8 @@ module Register where
 
 import Control.Monad.Reader
 import Control.Monad.ST
+import Data.BitSet (BitSet)
+import qualified Data.BitSet as BitSet
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import Data.Hashable
@@ -64,3 +66,8 @@ data VirtualOr physical
 
 printVirtual :: Virtual -> Builder
 printVirtual (V v) = "%" <> Builder.intDec v
+
+type instance RegisterType (BitSet a) = RegisterType a
+
+instance (FromRegister a, Enum a) => FromRegister (BitSet a) where
+  fromRegister = BitSet.singleton . fromRegister
