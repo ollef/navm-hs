@@ -13,7 +13,6 @@ extra-source-files:
 
 dependencies:
   - base >= 4.7 && < 5
-  - mtl
 
 ghc-options:
   - -Wall
@@ -38,6 +37,7 @@ library:
     - hedgehog
     - primitive
     - unordered-containers
+    - mtl
 
 executables:
   navm-hs:
