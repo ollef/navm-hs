@@ -1,11 +1,15 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Target.X86.Register where
 
+import Data.Hashable
+import GHC.Generics
 import Register (FromRegister (..), RegisterType)
 
 data Register = RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI | R8 | R9 | R10 | R11 | R12 | R13 | R14 | R15
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic, Hashable)
 
 rax, rcx, rdx, rbx, rsp, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15 :: (RegisterType a ~ Register, FromRegister a) => a
 rax = fromRegister RAX
