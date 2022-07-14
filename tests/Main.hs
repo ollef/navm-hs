@@ -3,6 +3,7 @@
 
 module Main where
 
+import qualified BitSet
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
@@ -23,7 +24,8 @@ import Target.X86.Random
 main :: IO ()
 main =
   Hedgehog.defaultMain
-    [ Hedgehog.checkParallel
+    [ Hedgehog.checkParallel BitSet.tests
+    , Hedgehog.checkParallel
         $ Hedgehog.Group
           "X86"
         $ assembleSelectedX86Instructions
