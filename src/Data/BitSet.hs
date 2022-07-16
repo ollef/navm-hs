@@ -113,25 +113,5 @@ pattern a :< as <- (uncons -> Just (a, as))
 
 {-# COMPLETE Empty, (:<) #-}
 
-complementList :: (Enum a, Bounded a) => BitSet a -> [a]
-complementList (BitSet i) = go 0 $ integerWords i
-  where
-    go :: forall a. (Enum a, Bounded a) => Int -> [Word] -> [a]
-    go !offset []
-      | offset <= fromEnum (maxBound :: a) = enumFrom (toEnum offset)
-      | otherwise = []
-    go !offset (w : ws) = go' offset (finiteBitSize w) (Data.Bits.complement w) ws
-    go' :: (Enum a, Bounded a) => Int -> Int -> Word -> [Word] -> [a]
-    go' !offset !bitsLeft !word rest
-      | trailingZeros == finiteBitSize word = go (offset + bitsLeft) rest
-      | bitsLeft == 0 = go offset rest
-      | otherwise = do
-          let firstSet = trailingZeros + 1
-          toEnum (offset + trailingZeros)
-            : go'
-              (offset + firstSet)
-              (bitsLeft - firstSet)
-              (word `shiftR` firstSet)
-              rest
-      where
-        trailingZeros = countTrailingZeros word
+complementList :: forall a. (Enum a, Bounded a) => BitSet a -> [a]
+complementList as = filter (not . flip member as) $ enumFrom minBound
