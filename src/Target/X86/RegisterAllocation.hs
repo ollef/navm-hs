@@ -60,7 +60,9 @@ data Allocation = Register !X86.Register | Stack !StackSlot
   deriving (Show)
 
 data AllocationState = AllocationState
-  { active :: [RegisterRange]
+  { inactive :: [RegisterRange]
+  -- ^ Sorted by increasing start point
+  , active :: [RegisterRange]
   -- ^ Sorted by increasing end point
   , free :: !(BitSet X86.Register)
   , usedSlots :: !(BitSet StackSlot)
@@ -70,33 +72,38 @@ data AllocationState = AllocationState
 
 type Allocator = State AllocationState
 
-initialState :: AllocationState
-initialState =
+initialState :: [X86.Instruction Register.Virtual] -> AllocationState
+initialState instructions =
   AllocationState
-    { active = mempty
+    { inactive =
+        sortOn (.range.start) $
+          HashMap.foldrWithKey (\register range -> (RegisterRange {..} :)) mempty $
+            liveRanges 0 instructions
+    , active = mempty
     , free = BitSet.delete X86.rsp Register.Class.any
     , usedSlots = mempty
     , allocation = mempty
     }
 
-allocateRegisters :: [X86.Instruction Register.Virtual] -> Allocator ()
-allocateRegisters instructions = do
-  let inactive =
-        sortOn (.range.start) $
-          HashMap.foldrWithKey (\register range -> (RegisterRange {..} :)) mempty $
-            liveRanges 0 instructions
-  forM_ inactive $ \registerRange -> do
-    expireOldIntervals registerRange.range.start
-    free <- gets (.free)
-    case BitSet.intersection registerRange.range.class_ free of
-      BitSet.Empty -> spillAt registerRange
-      physicalRegister BitSet.:< _ ->
-        modify $ \s ->
-          s
-            { free = BitSet.delete physicalRegister free
-            , active = insertBy (comparing (.range.end)) registerRange s.active
-            , allocation = HashMap.insert registerRange.register (Register physicalRegister) s.allocation
-            }
+allocateRegisters :: Allocator ()
+allocateRegisters = do
+  inactive <- gets (.inactive)
+  case inactive of
+    [] -> pure ()
+    registerRange : inactive' -> do
+      modify $ \s -> s {inactive = inactive'}
+      expireOldIntervals registerRange.range.start
+      free <- gets (.free)
+      case BitSet.intersection registerRange.range.class_ free of
+        BitSet.Empty -> spillAt registerRange
+        physicalRegister BitSet.:< _ ->
+          modify $ \s ->
+            s
+              { free = BitSet.delete physicalRegister free
+              , active = insertBy (comparing (.range.end)) registerRange s.active
+              , allocation = HashMap.insert registerRange.register (Register physicalRegister) s.allocation
+              }
+      allocateRegisters
 
 expireOldIntervals :: Int -> Allocator ()
 expireOldIntervals time = do
