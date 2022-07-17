@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -10,6 +11,7 @@ module Target.X86.RegisterAllocation where
 import Control.Monad.State
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
+import Data.Bits
 import Data.Foldable
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
@@ -18,16 +20,19 @@ import Data.List (insertBy, sortOn)
 import Data.Ord
 import qualified Register
 import qualified Target.X86.Assembly as X86
+import qualified Target.X86.Register.Class as Register (Class)
 import qualified Target.X86.Register.Class as Register.Class
 
 data LiveRange = LiveRange
   { start :: !Int
   , end :: !Int
+  , class_ :: !Register.Class
   }
   deriving (Eq, Show)
 
 instance Semigroup LiveRange where
-  LiveRange s1 e1 <> LiveRange s2 e2 = LiveRange (min s1 s2) (max e1 e2)
+  LiveRange s1 e1 c1 <> LiveRange s2 e2 c2 =
+    LiveRange (min s1 s2) (max e1 e2) (BitSet.intersection c1 c2)
 
 liveRanges ::
   Hashable register =>
@@ -38,12 +43,12 @@ liveRanges !time instructions =
   case instructions of
     [] -> mempty
     instruction : instructions' -> do
-      let registers = toList instruction
-          instructionRanges = foldl' (\l reg -> HashMap.insert reg (LiveRange time time) l) mempty registers
+      let registers = toList $ Register.Class.mapWithClass (\_ c r -> (c, r)) instruction
+          instructionRanges = foldl' (\l (class_, reg) -> HashMap.insert reg (LiveRange time time class_) l) mempty registers
       HashMap.unionWith (<>) instructionRanges $ liveRanges (time + 1) instructions'
 
 newtype StackSlot = StackSlot Word
-  deriving (Show, Enum, Bounded, Eq)
+  deriving (Show, Enum, Bounded, Eq, Bits, FiniteBits)
 
 data RegisterRange = RegisterRange
   { register :: !Register.Virtual
@@ -83,12 +88,12 @@ allocateRegisters instructions = do
   forM_ inactive $ \registerRange -> do
     expireOldIntervals registerRange.range.start
     free <- gets (.free)
-    case free of
+    case BitSet.intersection registerRange.range.class_ free of
       BitSet.Empty -> spillAt registerRange
-      physicalRegister BitSet.:< free' ->
+      physicalRegister BitSet.:< _ ->
         modify $ \s ->
           s
-            { free = free'
+            { free = BitSet.delete physicalRegister free
             , active = insertBy (comparing (.range.end)) registerRange s.active
             , allocation = HashMap.insert registerRange.register (Register physicalRegister) s.allocation
             }
@@ -109,8 +114,13 @@ spillAt registerRange = do
   slot <- newStackLocation
   active <- gets (.active)
   allocation <- gets (.allocation)
-  case active of
-    activeRegisterRange : active'
+  let relevant activeRegisterRange
+        | Register r <- allocation HashMap.! activeRegisterRange.register =
+            BitSet.member r registerRange.range.class_
+        | otherwise = False
+      (prefix, suffix) = span (not . relevant) active
+  case suffix of
+    activeRegisterRange : suffix'
       | activeRegisterRange.range.end >= registerRange.range.end
       , activeRegisterAllocation@(Register _) <- allocation HashMap.! activeRegisterRange.register ->
           modify $ \s ->
@@ -118,7 +128,7 @@ spillAt registerRange = do
               { allocation =
                   HashMap.insert activeRegisterRange.register (Stack slot) $
                     HashMap.insert registerRange.register activeRegisterAllocation allocation
-              , active = insertBy (comparing (.range.end)) registerRange active'
+              , active = insertBy (comparing (.range.end)) registerRange $ prefix <> suffix'
               }
     _ -> modify $ \s -> s {allocation = HashMap.insert registerRange.register (Stack slot) allocation}
 
