@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
@@ -12,6 +13,8 @@ import Control.Monad.State
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
 import Data.Bits
+import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as Builder
 import Data.Foldable
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
@@ -20,6 +23,7 @@ import Data.List (insertBy, sortOn)
 import Data.Ord
 import qualified Register
 import qualified Target.X86.Assembly as X86
+import qualified Target.X86.Printer as X86
 import qualified Target.X86.Register.Class as Register (Class)
 import qualified Target.X86.Register.Class as Register.Class
 
@@ -59,6 +63,18 @@ data RegisterRange = RegisterRange
 data Allocation = Register !X86.Register | Stack !StackSlot
   deriving (Show)
 
+printAllocation :: Allocation -> Builder
+printAllocation allocation = case allocation of
+  Register reg -> X86.printRegister reg
+  Stack (StackSlot s) -> "(stack slot " <> Builder.wordDec s <> ")"
+
+data Copy = Copy
+  { time :: !Int
+  , to :: !Register.Virtual
+  , from :: !Register.Virtual
+  }
+  deriving (Show)
+
 data AllocationState = AllocationState
   { inactive :: [RegisterRange]
   -- ^ Sorted by increasing start point
@@ -67,10 +83,31 @@ data AllocationState = AllocationState
   , free :: !(BitSet X86.Register)
   , usedSlots :: !(BitSet StackSlot)
   , allocation :: HashMap Register.Virtual Allocation
+  , copies :: [Copy]
   }
   deriving (Show)
 
-type Allocator = State AllocationState
+type Allocator = StateT AllocationState Register.VirtualSupply
+
+run :: [X86.Instruction Register.Virtual] -> Register.VirtualSupply [X86.Instruction Allocation]
+run instructions = do
+  s <- execStateT allocateRegisters (initialState instructions)
+  let instructions' = insertCopies 0 (sortOn (.time) s.copies) instructions
+  pure $ fmap (s.allocation HashMap.!) <$> instructions'
+
+insertCopies :: Int -> [Copy] -> [X86.Instruction Register.Virtual] -> [X86.Instruction Register.Virtual]
+insertCopies time copies instructions =
+  case copies of
+    [] -> instructions
+    copy : copies'
+      | time < copy.time ->
+          case instructions of
+            [] -> []
+            instruction : instructions' -> instruction : insertCopies (time + 1) copies instructions'
+      | time == copy.time ->
+          X86.mov (X86.Register copy.to) (X86.Register copy.from)
+            : insertCopies time copies' instructions
+      | otherwise -> error "copy time in the past"
 
 initialState :: [X86.Instruction Register.Virtual] -> AllocationState
 initialState instructions =
@@ -83,6 +120,7 @@ initialState instructions =
     , free = BitSet.delete X86.rsp Register.Class.any
     , usedSlots = mempty
     , allocation = mempty
+    , copies = mempty
     }
 
 allocateRegisters :: Allocator ()
@@ -95,7 +133,7 @@ allocateRegisters = do
       expireOldIntervals registerRange.range.start
       free <- gets (.free)
       case BitSet.intersection registerRange.range.class_ free of
-        BitSet.Empty -> spillAt registerRange
+        BitSet.Empty -> splitOrSpillAt registerRange
         physicalRegister BitSet.:< _ ->
           modify $ \s ->
             s
@@ -116,9 +154,19 @@ expireOldIntervals time = do
       Register physicalRegister -> modify $ \s -> s {free = BitSet.insert physicalRegister s.free}
       Stack slot -> modify $ \s -> s {usedSlots = BitSet.delete slot s.usedSlots}
 
-spillAt :: RegisterRange -> Allocator ()
-spillAt registerRange = do
-  slot <- newStackLocation
+--     r1     e1
+-- r0            e0
+-- => swap
+--
+--     r1       e1
+-- r0      e0
+-- => split
+--     r1  e1
+--            r1'  e1'
+-- r0      e0
+
+splitOrSpillAt :: RegisterRange -> Allocator ()
+splitOrSpillAt registerRange = do
   active <- gets (.active)
   allocation <- gets (.allocation)
   let relevant activeRegisterRange
@@ -129,7 +177,8 @@ spillAt registerRange = do
   case suffix of
     activeRegisterRange : suffix'
       | activeRegisterRange.range.end >= registerRange.range.end
-      , activeRegisterAllocation@(Register _) <- allocation HashMap.! activeRegisterRange.register ->
+      , activeRegisterAllocation@(Register _) <- allocation HashMap.! activeRegisterRange.register -> do
+          slot <- newStackLocation
           modify $ \s ->
             s
               { allocation =
@@ -137,7 +186,44 @@ spillAt registerRange = do
                     HashMap.insert registerRange.register activeRegisterAllocation allocation
               , active = insertBy (comparing (.range.end)) registerRange $ prefix <> suffix'
               }
-    _ -> modify $ \s -> s {allocation = HashMap.insert registerRange.register (Stack slot) allocation}
+      | activeRegisterRange.range.end < registerRange.range.end -> do
+          newVirtualRegister <- lift Register.fresh
+          let registerRange1 =
+                RegisterRange
+                  { register = registerRange.register
+                  , range =
+                      LiveRange
+                        { start = registerRange.range.start
+                        , end = activeRegisterRange.range.end
+                        , class_ = registerRange.range.class_
+                        }
+                  }
+              registerRange2 =
+                RegisterRange
+                  { register = newVirtualRegister
+                  , range =
+                      LiveRange
+                        { start = activeRegisterRange.range.start + 1
+                        , end = registerRange.range.end
+                        , class_ = registerRange.range.class_
+                        }
+                  }
+          modify $ \s ->
+            s
+              { inactive =
+                  registerRange1
+                    : insertBy (comparing (.range.start)) registerRange2 s.inactive
+              , copies =
+                  Copy
+                    { time = activeRegisterRange.range.start + 1
+                    , to = newVirtualRegister
+                    , from = registerRange.register
+                    }
+                    : s.copies
+              }
+    _ -> do
+      slot <- newStackLocation
+      modify $ \s -> s {allocation = HashMap.insert registerRange.register (Stack slot) allocation}
 
 newStackLocation :: Allocator StackSlot
 newStackLocation = do
