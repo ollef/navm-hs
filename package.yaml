@@ -6,7 +6,7 @@ homepage:            https://github.com/ollef/navm-hs#readme
 license:             BSD3
 author:              Olle Fredriksson
 maintainer:          fredriksson.olle@gmail.com
-copyright:           2021 Olle Fredriksson
+copyright:           2021-2022 Olle Fredriksson
 extra-source-files:
 - README.md
 - fourmolu.yaml
