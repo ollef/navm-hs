@@ -18,7 +18,7 @@ import Data.Kind (Type)
 import Data.STRef
 
 newtype Virtual = V Int
-  deriving (Eq, Show, Hashable, Enum)
+  deriving (Eq, Ord, Show, Hashable, Enum)
 
 newtype VirtualSupply a
   = VirtualSupply (forall s. ReaderT (STRef s Virtual) (ST s) a)

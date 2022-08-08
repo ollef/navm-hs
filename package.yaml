@@ -33,11 +33,12 @@ library:
     - byte-order
     - bytestring
     - containers
+    - IntervalMap
     - hashable
     - hedgehog
+    - mtl
     - primitive
     - unordered-containers
-    - mtl
 
 executables:
   navm-hs:
