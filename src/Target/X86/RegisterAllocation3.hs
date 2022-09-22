@@ -61,8 +61,8 @@ buildGraph =
               graph
               instruction
 
-classes :: [X86.Instruction Register.Virtual] -> EnumMap Register.Virtual X86.Register.Class
-classes =
+registerClasses :: [X86.Instruction Register.Virtual] -> EnumMap Register.Virtual X86.Register.Class
+registerClasses =
   EnumMap.unionsWith BitSet.intersection
     . concatMap (toList . X86.Register.mapWithClass (\_ class_ reg -> EnumMap.singleton reg class_))
 
