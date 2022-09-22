@@ -6,12 +6,14 @@ module Scratch where
 
 import Control.Monad.State
 import qualified Data.ByteString.Builder as Builder
+import Data.EnumMap (EnumMap)
 import Register (FromRegister (fromRegister), RegisterType)
 import qualified Register
 import System.IO
 import Target.X86.Assembly
 import Target.X86.Printer.SSA
 import Target.X86.RegisterAllocation.Legalisation
+import Target.X86.RegisterAllocation3
 
 program :: [Instruction Register.Virtual]
 program =
@@ -35,3 +37,6 @@ splitRegisters =
 
 printSSA :: [Instruction Register.Virtual] -> IO ()
 printSSA instructions = Builder.hPutBuilder stdout $ printInstructions Register.printVirtual instructions
+
+allocation :: EnumMap Register.Virtual Allocation
+allocation = colour (buildGraph splitRegisters) (registerClasses splitRegisters)
