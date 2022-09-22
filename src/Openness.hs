@@ -53,17 +53,17 @@ class FunctorOC (node :: (OC -> OC -> Type) -> OC -> OC -> Type) where
 class FunctorOC node => FoldableOC node where
   type FoldableConstraints node (b :: OC -> OC -> Type) :: Constraint
   type FoldableConstraints node b = ()
-  foldMap ::
-    (FoldableConstraints node b, MonoidOC b) =>
-    (forall i' o'. a i' o' -> b i' o') ->
-    node a i o ->
-    b i o
+  foldMap
+    :: (FoldableConstraints node b, MonoidOC b)
+    => (forall i' o'. a i' o' -> b i' o')
+    -> node a i o
+    -> b i o
 
-foldMapA ::
-  (FoldableOC node, FoldableConstraints node (ComposeOC f b), MonoidOC b, Applicative f) =>
-  (forall i' o'. a i' o' -> f (b i' o')) ->
-  node a i o ->
-  f (b i o)
+foldMapA
+  :: (FoldableOC node, FoldableConstraints node (ComposeOC f b), MonoidOC b, Applicative f)
+  => (forall i' o'. a i' o' -> f (b i' o'))
+  -> node a i o
+  -> f (b i o)
 foldMapA f = getComposeOC . Openness.foldMap (ComposeOC . f)
 
 class FunctorOC node => UnitOC (node :: (OC -> OC -> Type) -> OC -> OC -> Type) where

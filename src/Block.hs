@@ -25,19 +25,19 @@ data Block node (i :: OC) (o :: OC) where
 
 deriving instance (forall i' o'. Show (node i' o')) => Show (Block node i o)
 
-blockView ::
-  Block node i o ->
-  (MaybeC i (node 'C 'O), [node 'O 'O], MaybeC o (node 'O 'C))
+blockView
+  :: Block node i o
+  -> (MaybeC i (node 'C 'O), [node 'O 'O], MaybeC o (node 'O 'C))
 blockView (BlockOO ns) = (NothingC, ns, NothingC)
 blockView (BlockOC ns n) = (NothingC, ns, JustC n)
 blockView (BlockCO n ns) = (JustC n, ns, NothingC)
 blockView (BlockCC n ns n') = (JustC n, ns, JustC n')
 
-pattern Block ::
-  MaybeC i (node 'C 'O) ->
-  [node 'O 'O] ->
-  MaybeC o (node 'O 'C) ->
-  Block node i o
+pattern Block
+  :: MaybeC i (node 'C 'O)
+  -> [node 'O 'O]
+  -> MaybeC o (node 'O 'C)
+  -> Block node i o
 pattern Block n ns n' <-
   (blockView -> (n, ns, n'))
   where
@@ -81,11 +81,11 @@ instance FoldableOC Block where
                )
 
 instance UnitOC Block where
-  unit ::
-    forall node i o.
-    (Known i, Known o) =>
-    node i o ->
-    Block node i o
+  unit
+    :: forall node i o
+     . (Known i, Known o)
+    => node i o
+    -> Block node i o
   unit node =
     case (known @i, known @o) of
       (SingletonO, SingletonO) -> BlockOO [node]

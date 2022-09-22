@@ -5,6 +5,8 @@ module Target.X86.Register.Class where
 
 import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
+import Data.Foldable hiding (any)
+import Data.Function
 import Data.Functor.Identity
 import Target.X86.Assembly
 import Prelude hiding (any)
@@ -17,18 +19,18 @@ data Occurrence = Definition | Use
 any :: Class
 any = BitSet.full
 
-mapWithClass ::
-  (Occurrence -> Class -> reg -> reg') ->
-  Instruction reg ->
-  (Instruction reg')
+mapWithClass
+  :: (Occurrence -> Class -> reg -> reg')
+  -> Instruction reg
+  -> Instruction reg'
 mapWithClass f =
   runIdentity . mapMWithClass (\o c r -> Identity $ f o c r)
 
-mapMWithClass ::
-  Monad m =>
-  (Occurrence -> Class -> reg -> m reg') ->
-  Instruction reg ->
-  m (Instruction reg')
+mapMWithClass
+  :: Monad m
+  => (Occurrence -> Class -> reg -> m reg')
+  -> Instruction reg
+  -> m (Instruction reg')
 mapMWithClass f instruction =
   case instruction of
     Add dst src1 src2 -> Add <$> def any dst <*> use any src1 <*> use any src2

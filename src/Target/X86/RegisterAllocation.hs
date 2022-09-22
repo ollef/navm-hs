@@ -38,11 +38,11 @@ instance Semigroup LiveRange where
   LiveRange s1 e1 c1 <> LiveRange s2 e2 c2 =
     LiveRange (min s1 s2) (max e1 e2) (BitSet.intersection c1 c2)
 
-liveRanges ::
-  Hashable register =>
-  Int ->
-  [X86.Instruction register] ->
-  HashMap register LiveRange
+liveRanges
+  :: Hashable register
+  => Int
+  -> [X86.Instruction register]
+  -> HashMap register LiveRange
 liveRanges !time instructions =
   case instructions of
     [] -> mempty

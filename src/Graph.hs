@@ -26,27 +26,27 @@ data Graph node (i :: OC) (o :: OC) where
   GraphOO :: node 'O 'C -> HashMap (Label node) (node 'C 'C) -> node 'C 'O -> Graph node 'O 'O
 
 deriving instance
-  (forall i' o'. Show (node i' o'), Show (Label node)) =>
-  Show (Graph node i o)
+  (forall i' o'. Show (node i' o'), Show (Label node))
+  => Show (Graph node i o)
 
-manyView ::
-  Graph node i o ->
-  Maybe
-    ( MaybeO i (node 'O 'C)
-    , HashMap (Label node) (node 'C 'C)
-    , MaybeO o (node 'C 'O)
-    )
+manyView
+  :: Graph node i o
+  -> Maybe
+      ( MaybeO i (node 'O 'C)
+      , HashMap (Label node) (node 'C 'C)
+      , MaybeO o (node 'C 'O)
+      )
 manyView (Single _) = Nothing
 manyView (GraphCC ls) = Just (NothingO, ls, NothingO)
 manyView (GraphOC n ls) = Just (JustO n, ls, NothingO)
 manyView (GraphCO ls n) = Just (NothingO, ls, JustO n)
 manyView (GraphOO n ls n') = Just (JustO n, ls, JustO n')
 
-pattern Many ::
-  MaybeO i (node 'O 'C) ->
-  HashMap (Label node) (node 'C 'C) ->
-  MaybeO o (node 'C 'O) ->
-  Graph node i o
+pattern Many
+  :: MaybeO i (node 'O 'C)
+  -> HashMap (Label node) (node 'C 'C)
+  -> MaybeO o (node 'C 'O)
+  -> Graph node i o
 pattern Many n ls n' <-
   (manyView -> Just (n, ls, n'))
   where
@@ -104,11 +104,11 @@ instance FoldableOC Graph where
 
 instance UnitOC Graph where
   type UnitConstraints Graph a = HashLabelled a
-  unit ::
-    forall a i o.
-    (Known i, Known o, UnitConstraints Graph a) =>
-    a i o ->
-    Graph a i o
+  unit
+    :: forall a i o
+     . (Known i, Known o, UnitConstraints Graph a)
+    => a i o
+    -> Graph a i o
   unit node = case (known @i, known @o) of
     (SingletonC, SingletonC) -> GraphCC $ HashMap.singleton (label node) node
     (SingletonO, SingletonC) -> GraphOC node mempty

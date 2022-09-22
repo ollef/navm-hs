@@ -14,9 +14,9 @@ import qualified Register
 import Target.X86.Assembly
 import qualified Target.X86.Register.Class as X86.Register
 
-legaliseOperands ::
-  Instruction Register.Virtual ->
-  Register.VirtualSupply [Instruction Register.Virtual]
+legaliseOperands
+  :: Instruction Register.Virtual
+  -> Register.VirtualSupply [Instruction Register.Virtual]
 legaliseOperands instruction =
   case instruction of
     Add a@(Memory _) b c@(Memory _) -> do
@@ -58,9 +58,9 @@ legaliseOperands instruction =
 type RegisterVariants =
   HashMap Register.Virtual (HashMap X86.Register.Class Register.Virtual)
 
-splitRegistersWithDifferingOccurrenceClasses ::
-  Instruction Register.Virtual ->
-  StateT RegisterVariants Register.VirtualSupply [Instruction Register.Virtual]
+splitRegistersWithDifferingOccurrenceClasses
+  :: Instruction Register.Virtual
+  -> StateT RegisterVariants Register.VirtualSupply [Instruction Register.Virtual]
 splitRegistersWithDifferingOccurrenceClasses instruction = do
   (instruction', (before, after)) <- runWriterT $ X86.Register.mapMWithClass go instruction
   pure $ before <> [instruction'] <> after
