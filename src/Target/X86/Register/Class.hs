@@ -41,6 +41,6 @@ mapMWithClass f instruction =
     MovImmediate64 dst src -> MovImmediate64 <$> f Definition any dst <*> pure src
     Define label -> pure $ Define label
   where
-    use class_ operand = mapM (f Use class_) operand
+    use class_ = mapM $ f Use class_
     def class_ (Register r) = Register <$> f Definition class_ r
     def class_ operand = use class_ operand
