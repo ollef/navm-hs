@@ -38,6 +38,7 @@ library:
     - hedgehog
     - mtl
     - primitive
+    - psqueues
     - unordered-containers
 
 executables:

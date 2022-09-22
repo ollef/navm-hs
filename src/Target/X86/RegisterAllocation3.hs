@@ -4,12 +4,17 @@
 
 module Target.X86.RegisterAllocation3 where
 
+import Data.Bifunctor
 import qualified Data.BitSet as BitSet
+import Data.Coerce
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
 import qualified Data.EnumSet as EnumSet
 import Data.Foldable
+import Data.IntPSQ (IntPSQ)
+import qualified Data.IntPSQ as PSQ
+import Data.Ord
 import qualified Register
 import qualified Target.X86.Assembly as X86
 import qualified Target.X86.Register.Class as X86.Register
@@ -60,3 +65,14 @@ classes :: [X86.Instruction Register.Virtual] -> EnumMap Register.Virtual X86.Re
 classes =
   EnumMap.unionsWith BitSet.intersection
     . concatMap (toList . X86.Register.mapWithClass (\_ class_ reg -> EnumMap.singleton reg class_))
+
+simplicialEliminationOrder :: Graph -> [Register.Virtual]
+simplicialEliminationOrder graph = go $ PSQ.fromList [(coerce r, Down 0, r) | (r, _) <- EnumMap.toList graph]
+  where
+    go :: IntPSQ (Down Int) Register.Virtual -> [Register.Virtual]
+    go queue = case PSQ.minView queue of
+      Nothing -> []
+      Just (_, _, r, queue') ->
+        r : do
+          let neighbours = graph EnumMap.! r
+          go $ EnumSet.foldl' (\q n -> snd $ PSQ.alter ((,) () . fmap (first (+ 1))) (coerce n) q) queue' neighbours
