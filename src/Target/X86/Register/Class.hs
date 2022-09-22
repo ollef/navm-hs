@@ -44,3 +44,6 @@ mapMWithClass f instruction =
     use class_ = mapM $ f Use class_
     def class_ (Register r) = Register <$> f Definition class_ r
     def class_ operand = use class_ operand
+
+foldWithClass :: (Occurrence -> Class -> reg -> a -> a) -> a -> Instruction reg -> a
+foldWithClass f def = foldl' (&) def . mapWithClass f
