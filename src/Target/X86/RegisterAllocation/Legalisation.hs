@@ -31,7 +31,7 @@ legaliseOperands instruction =
           concatMapM
             legaliseOperands
             [ Mov a b
-            , Add a a b
+            , Add a a c
             ]
     Add {} -> pure [instruction]
     Mul a b c@(Immediate _) -> do
