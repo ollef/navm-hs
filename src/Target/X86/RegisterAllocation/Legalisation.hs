@@ -27,13 +27,11 @@ legaliseOperands instruction =
         , Add a b c'
         ]
     Add a b c
-      | a /= b -> do
-          c' <- Register <$> Register.fresh
+      | a /= b ->
           concatMapM
             legaliseOperands
-            [ Mov c' c
-            , Add c' c' b
-            , Add a a c'
+            [ Mov a b
+            , Add a a b
             ]
     Add {} -> pure [instruction]
     Mul a b c@(Immediate _) -> do
@@ -51,7 +49,7 @@ legaliseOperands instruction =
       b' <- Register <$> Register.fresh
       pure
         [ Mov b' b
-        , Mov a b
+        , Mov a b'
         ]
     Mov {} -> pure [instruction]
     MovImmediate64 {} -> pure [instruction]
