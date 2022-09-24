@@ -83,7 +83,7 @@ newtype StackSlot = StackSlot Word
   deriving (Show, Enum, Bounded, Eq, Bits, FiniteBits, Num)
 
 data Allocation = Register !X86.Register | Stack !StackSlot
-  deriving (Show)
+  deriving (Eq, Show)
 
 scratchRegister :: (RegisterType a ~ X86.Register, FromRegister a) => a
 scratchRegister = X86.r15
@@ -116,3 +116,9 @@ colour graph classes = foldl' go mempty $ simplicialEliminationOrder graph
                 Nothing -> 0
                 Just (s, _) -> s + 1
           EnumMap.insert reg (Stack slot) allocations
+
+removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
+removeRedundantMoves = concatMap go
+  where
+    go (X86.Mov (X86.Register a) (X86.Register b)) | a == b = []
+    go instr = [instr]
