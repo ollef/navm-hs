@@ -15,6 +15,7 @@ import qualified Data.EnumSet as EnumSet
 import Data.Foldable
 import Data.IntPSQ (IntPSQ)
 import qualified Data.IntPSQ as PSQ
+import Data.List (sortOn)
 import Data.Ord
 import Register (FromRegister, RegisterType)
 import qualified Register
@@ -89,12 +90,13 @@ scratchRegister :: (RegisterType a ~ X86.Register, FromRegister a) => a
 scratchRegister = X86.r15
 
 colour :: Graph -> EnumMap Register.Virtual X86.Register.Class -> EnumMap Register.Virtual Allocation
-colour graph classes = foldl' go mempty $ simplicialEliminationOrder graph
+colour graph classes = foldl' go mempty orderedRegisters
   where
-    go :: EnumMap Register.Virtual Allocation -> Register.Virtual -> EnumMap Register.Virtual Allocation
-    go allocations reg = do
-      let class_ = classes EnumMap.! reg
-          neighbours = EnumMap.findWithDefault mempty reg graph
+    orderedRegisters :: [(Register.Virtual, X86.Register.Class)]
+    orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes EnumMap.! reg) | reg <- simplicialEliminationOrder graph]
+    go :: EnumMap Register.Virtual Allocation -> (Register.Virtual, X86.Register.Class) -> EnumMap Register.Virtual Allocation
+    go allocations (reg, class_) = do
+      let neighbours = EnumMap.findWithDefault mempty reg graph
           neighbourRegisters =
             mconcat
               [ Register.fromRegister physicalReg
