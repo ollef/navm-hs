@@ -30,6 +30,10 @@ resolver: nightly-2022-09-17
 #   - wai
 packages:
 - .
+
+extra-deps:
+  - git: https://github.com/ollef/enummapset.git
+    commit: e84cdeeede42fe593402dec08f820e3ee9b4f3e6
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
