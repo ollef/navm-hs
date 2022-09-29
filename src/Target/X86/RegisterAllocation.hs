@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Target.X86.RegisterAllocation3 where
+module Target.X86.RegisterAllocation where
 
 import Data.Bifunctor
 import qualified Data.BitSet as BitSet

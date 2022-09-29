@@ -15,8 +15,8 @@ import System.IO
 import Target.X86 as X86
 import Target.X86.Printer.SSA as SSA
 import Target.X86.Register.Class as X86.Register
+import Target.X86.RegisterAllocation as Allocation
 import Target.X86.RegisterAllocation.Legalisation
-import Target.X86.RegisterAllocation3 as Allocation
 
 program :: [Instruction Register.Virtual]
 program =
