@@ -5,7 +5,6 @@
 
 module Scratch where
 
-import Control.Monad.State
 import qualified Data.ByteString.Builder as Builder
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
@@ -35,8 +34,7 @@ legalOperands = Register.runVirtualSupply (Register.V 100) (concatMapM legaliseO
 splitRegisters :: [Instruction Register.Virtual]
 splitRegisters =
   Register.runVirtualSupply (Register.V 200) $
-    flip evalStateT mempty $
-      concatMapM splitRegistersWithDifferingOccurrenceClasses legalOperands
+    concatMapM insertMovesAroundConstrainedOccurrences legalOperands
 
 graph :: Graph
 graph = buildGraph splitRegisters

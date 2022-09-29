@@ -6,6 +6,7 @@ module Target.X86.RegisterAllocation.Legalisation where
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer
+import qualified Data.BitSet as BitSet
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.Functor.Compose
@@ -59,6 +60,20 @@ legaliseOperands instruction =
 
 type RegisterVariants =
   EnumMap Register.Virtual (HashMap X86.Register.Class Register.Virtual)
+
+insertMovesAroundConstrainedOccurrences :: Instruction Register.Virtual -> Register.VirtualSupply [Instruction Register.Virtual]
+insertMovesAroundConstrainedOccurrences instruction = do
+  (instruction', (before, after)) <- runWriterT $ X86.Register.mapMWithClass go instruction
+  pure $ before <> [instruction'] <> after
+  where
+    go occurrence class_ reg
+      | BitSet.size class_ == 1 = do
+          reg' <- lift fresh
+          tell $ case occurrence of
+            X86.Register.Definition -> (mempty, [Mov (Register reg) (Register reg')])
+            X86.Register.Use -> ([Mov (Register reg') (Register reg)], mempty)
+          pure reg'
+      | otherwise = pure reg
 
 splitRegistersWithDifferingOccurrenceClasses
   :: Instruction Register.Virtual
