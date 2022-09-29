@@ -6,6 +6,8 @@ module Target.X86.RegisterAllocation.Legalisation where
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.EnumMap (EnumMap)
+import qualified Data.EnumMap as EnumMap
 import Data.Functor.Compose
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
@@ -56,7 +58,7 @@ legaliseOperands instruction =
     Define {} -> pure [instruction]
 
 type RegisterVariants =
-  HashMap Register.Virtual (HashMap X86.Register.Class Register.Virtual)
+  EnumMap Register.Virtual (HashMap X86.Register.Class Register.Virtual)
 
 splitRegistersWithDifferingOccurrenceClasses
   :: Instruction Register.Virtual
@@ -87,7 +89,7 @@ splitRegistersWithDifferingOccurrenceClasses instruction = do
             Compose $
               pure (reg', Just reg')
       variants <- get
-      (reg', variants') <- getCompose $ HashMap.alterF alterReg reg variants
+      (reg', variants') <- getCompose $ EnumMap.alterF alterReg reg variants
       put variants'
       pure reg'
 
