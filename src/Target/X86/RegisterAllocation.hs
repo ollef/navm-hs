@@ -24,6 +24,16 @@ import qualified Target.X86.Register.Class as X86.Register
 
 type Graph = EnumMap Register.Virtual (EnumSet Register.Virtual)
 
+type Classes = EnumMap Register.Virtual X86.Register.Class
+
+type Allocation = EnumMap Register.Virtual Location
+
+newtype StackSlot = StackSlot Word
+  deriving (Show, Enum, Bounded, Eq, Bits, FiniteBits, Num)
+
+data Location = Register !X86.Register | Stack !StackSlot
+  deriving (Eq, Show)
+
 addEdge :: Register.Virtual -> Register.Virtual -> Graph -> Graph
 addEdge r1 r2 =
   EnumMap.insertWith (<>) r1 (EnumSet.singleton r2)
@@ -64,7 +74,7 @@ buildGraph =
               graph
               instruction
 
-registerClasses :: [X86.Instruction Register.Virtual] -> EnumMap Register.Virtual X86.Register.Class
+registerClasses :: [X86.Instruction Register.Virtual] -> Classes
 registerClasses =
   EnumMap.unionsWith BitSet.intersection
     . concatMap (toList . X86.Register.mapWithClass (\_ class_ reg -> EnumMap.singleton reg class_))
@@ -80,24 +90,15 @@ simplicialEliminationOrder graph = go $ PSQ.fromList [(coerce r, Down 0, r) | (r
           let neighbours = EnumMap.findWithDefault mempty reg graph
           go $ EnumSet.foldl' (\q n -> snd $ PSQ.alter ((,) () . fmap (first (+ 1))) (coerce n) q) queue' neighbours
 
-newtype StackSlot = StackSlot Word
-  deriving (Show, Enum, Bounded, Eq, Bits, FiniteBits, Num)
-
-data Allocation = Register !X86.Register | Stack !StackSlot
-  deriving (Eq, Show)
-
 scratchRegister :: (RegisterType a ~ X86.Register, FromRegister a) => a
 scratchRegister = X86.r15
 
-colour :: Graph -> EnumMap Register.Virtual X86.Register.Class -> EnumMap Register.Virtual Allocation
+colour :: Graph -> Classes -> Allocation
 colour graph classes = foldl' go mempty orderedRegisters
   where
     orderedRegisters :: [(Register.Virtual, X86.Register.Class)]
     orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes EnumMap.! reg) | reg <- simplicialEliminationOrder graph]
-    go
-      :: EnumMap Register.Virtual Allocation
-      -> (Register.Virtual, X86.Register.Class)
-      -> EnumMap Register.Virtual Allocation
+    go :: Allocation -> (Register.Virtual, X86.Register.Class) -> Allocation
     go allocations (reg, class_) = do
       let neighbours = EnumMap.findWithDefault mempty reg graph
           neighbourRegisters =
@@ -128,19 +129,11 @@ removeRedundantMoves = concatMap go
     go (X86.Mov (X86.Register a) (X86.Register b)) | a == b = []
     go instr = [instr]
 
-coalesce
-  :: Graph
-  -> EnumMap Register.Virtual X86.Register.Class
-  -> [X86.Instruction Register.Virtual]
-  -> EnumMap Register.Virtual Allocation
-  -> EnumMap Register.Virtual Allocation
-coalesce graph classes instructions initialAllocation =
+coalesce :: Graph -> Classes -> Allocation -> [X86.Instruction Register.Virtual] -> Allocation
+coalesce graph classes initialAllocation instructions =
   foldl' go initialAllocation [(r1, r2) | X86.Mov (X86.Register r1) (X86.Register r2) <- instructions, r1 /= r2]
   where
-    go
-      :: EnumMap Register.Virtual Allocation
-      -> (Register.Virtual, Register.Virtual)
-      -> EnumMap Register.Virtual Allocation
+    go :: Allocation -> (Register.Virtual, Register.Virtual) -> Allocation
     go allocation (r1, r2)
       | colour1 == colour2 = allocation
       | EnumSet.member r1 neighbours = allocation

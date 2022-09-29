@@ -44,28 +44,28 @@ graph = buildGraph splitRegisters
 classes :: EnumMap Register.Virtual X86.Register.Class
 classes = registerClasses splitRegisters
 
-allocation :: EnumMap Register.Virtual Allocation
+allocation :: Allocation
 allocation = colour graph classes
 
-coalescedAllocation :: EnumMap Register.Virtual Allocation
-coalescedAllocation = coalesce graph classes splitRegisters $ colour graph classes
+coalescedAllocation :: Allocation
+coalescedAllocation = coalesce graph classes (colour graph classes) splitRegisters
 
-allocated :: [Instruction Allocation]
+allocated :: [Instruction Location]
 allocated = map (fmap (allocation EnumMap.!)) splitRegisters
 
-irredundant :: [Instruction Allocation]
+irredundant :: [Instruction Location]
 irredundant = removeRedundantMoves allocated
 
-coalesced :: [Instruction Allocation]
+coalesced :: [Instruction Location]
 coalesced = map (fmap (coalescedAllocation EnumMap.!)) splitRegisters
 
-coalescedIrredundant :: [Instruction Allocation]
+coalescedIrredundant :: [Instruction Location]
 coalescedIrredundant = removeRedundantMoves coalesced
 
 printSSA :: [Instruction Register.Virtual] -> IO ()
 printSSA instructions = Builder.hPutBuilder stdout $ SSA.printInstructions Register.printVirtual instructions
 
-printAllocated :: [Instruction Allocation] -> IO ()
+printAllocated :: [Instruction Location] -> IO ()
 printAllocated instructions =
   Builder.hPutBuilder stdout $
     SSA.printInstructions
