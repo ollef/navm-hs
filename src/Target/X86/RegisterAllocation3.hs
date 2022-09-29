@@ -127,3 +127,39 @@ removeRedundantMoves = concatMap go
   where
     go (X86.Mov (X86.Register a) (X86.Register b)) | a == b = []
     go instr = [instr]
+
+coalesce
+  :: Graph
+  -> EnumMap Register.Virtual X86.Register.Class
+  -> [X86.Instruction Register.Virtual]
+  -> EnumMap Register.Virtual Allocation
+  -> EnumMap Register.Virtual Allocation
+coalesce graph classes instructions initialAllocation =
+  foldl' go initialAllocation [(r1, r2) | X86.Mov (X86.Register r1) (X86.Register r2) <- instructions, r1 /= r2]
+  where
+    go
+      :: EnumMap Register.Virtual Allocation
+      -> (Register.Virtual, Register.Virtual)
+      -> EnumMap Register.Virtual Allocation
+    go allocation (r1, r2)
+      | colour1 == colour2 = allocation
+      | EnumSet.member r1 neighbours = allocation
+      | otherwise = do
+          let class_ = BitSet.intersection (classes EnumMap.! r1) (classes EnumMap.! r2)
+              neighbourRegisters =
+                EnumSet.foldl'
+                  ( \used neighbour ->
+                      used <> case allocation EnumMap.! neighbour of
+                        Register r -> BitSet.singleton r
+                        Stack _ -> mempty
+                  )
+                  mempty
+                  neighbours
+              possibleRegisters = BitSet.delete scratchRegister $ BitSet.intersection class_ (BitSet.complement neighbourRegisters)
+          case possibleRegisters of
+            physicalReg BitSet.:< _ -> EnumMap.insert r1 (Register physicalReg) $ EnumMap.insert r2 (Register physicalReg) allocation
+            BitSet.Empty -> allocation
+      where
+        neighbours = graph EnumMap.! r1 <> graph EnumMap.! r2
+        colour1 = allocation EnumMap.! r1
+        colour2 = allocation EnumMap.! r2

@@ -14,6 +14,7 @@ import qualified Register
 import System.IO
 import Target.X86 as X86
 import Target.X86.Printer.SSA as SSA
+import Target.X86.Register.Class as X86.Register
 import Target.X86.RegisterAllocation.Legalisation
 import Target.X86.RegisterAllocation3 as Allocation
 
@@ -37,11 +38,29 @@ splitRegisters =
     flip evalStateT mempty $
       concatMapM splitRegistersWithDifferingOccurrenceClasses legalOperands
 
+graph :: Graph
+graph = buildGraph splitRegisters
+
+classes :: EnumMap Register.Virtual X86.Register.Class
+classes = registerClasses splitRegisters
+
 allocation :: EnumMap Register.Virtual Allocation
-allocation = colour (buildGraph splitRegisters) (registerClasses splitRegisters)
+allocation = colour graph classes
+
+coalescedAllocation :: EnumMap Register.Virtual Allocation
+coalescedAllocation = coalesce graph classes splitRegisters $ colour graph classes
 
 allocated :: [Instruction Allocation]
 allocated = map (fmap (allocation EnumMap.!)) splitRegisters
+
+irredundant :: [Instruction Allocation]
+irredundant = removeRedundantMoves allocated
+
+coalesced :: [Instruction Allocation]
+coalesced = map (fmap (coalescedAllocation EnumMap.!)) splitRegisters
+
+coalescedIrredundant :: [Instruction Allocation]
+coalescedIrredundant = removeRedundantMoves coalesced
 
 printSSA :: [Instruction Register.Virtual] -> IO ()
 printSSA instructions = Builder.hPutBuilder stdout $ SSA.printInstructions Register.printVirtual instructions
