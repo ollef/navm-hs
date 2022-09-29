@@ -99,29 +99,29 @@ colour graph classes = foldl' go mempty orderedRegisters
     orderedRegisters :: [(Register.Virtual, X86.Register.Class)]
     orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes EnumMap.! reg) | reg <- simplicialEliminationOrder graph]
     go :: Allocation -> (Register.Virtual, X86.Register.Class) -> Allocation
-    go allocations (reg, class_) = do
+    go allocation (reg, class_) = do
       let neighbours = EnumMap.findWithDefault mempty reg graph
           neighbourRegisters =
             mconcat
               [ Register.fromRegister physicalReg
               | neighbour <- EnumSet.toList neighbours
-              , Just (Register physicalReg) <- [EnumMap.lookup neighbour allocations]
+              , Just (Register physicalReg) <- [EnumMap.lookup neighbour allocation]
               ]
           possibleRegisters = BitSet.delete scratchRegister $ BitSet.intersection class_ (BitSet.complement neighbourRegisters)
       case possibleRegisters of
         physicalReg BitSet.:< _ ->
-          EnumMap.insert reg (Register physicalReg) allocations
+          EnumMap.insert reg (Register physicalReg) allocation
         BitSet.Empty -> do
           let neighbourSlots =
                 EnumSet.fromList
                   [ s
                   | neighbour <- EnumSet.toList neighbours
-                  , Just (Stack s) <- [EnumMap.lookup neighbour allocations]
+                  , Just (Stack s) <- [EnumMap.lookup neighbour allocation]
                   ]
               slot = case EnumSet.maxView neighbourSlots of
                 Nothing -> 0
                 Just (s, _) -> s + 1
-          EnumMap.insert reg (Stack slot) allocations
+          EnumMap.insert reg (Stack slot) allocation
 
 removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
 removeRedundantMoves = concatMap go
