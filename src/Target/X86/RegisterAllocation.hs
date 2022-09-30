@@ -107,7 +107,7 @@ colour graph classes = foldl' go mempty orderedRegisters
               | neighbour <- EnumSet.toList neighbours
               , Just (Register physicalReg) <- [EnumMap.lookup neighbour allocation]
               ]
-          possibleRegisters = BitSet.delete scratchRegister $ BitSet.intersection class_ (BitSet.complement neighbourRegisters)
+          possibleRegisters = BitSet.delete scratchRegister $ BitSet.difference class_ neighbourRegisters
       case possibleRegisters of
         physicalReg BitSet.:< _ ->
           EnumMap.insert reg (Register physicalReg) allocation
