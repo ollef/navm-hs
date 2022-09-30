@@ -42,6 +42,12 @@ addEdge r1 r2 =
 addEdges :: [(Register.Virtual, Register.Virtual)] -> Graph -> Graph
 addEdges edges graph = foldl' (flip $ uncurry addEdge) graph edges
 
+delete :: Register.Virtual -> Graph -> Graph
+delete r g =
+  EnumSet.foldl' (flip $ EnumMap.adjust (EnumSet.delete r)) g' $ fold maybeEdges
+  where
+    (maybeEdges, g') = EnumMap.updateLookupWithKey (\_ _ -> Nothing) r g
+
 buildGraph :: [X86.Instruction Register.Virtual] -> Graph
 buildGraph =
   fst . foldr go mempty
@@ -130,15 +136,30 @@ removeRedundantMoves = concatMap go
     go instr = [instr]
 
 coalesce :: Graph -> Classes -> Allocation -> [X86.Instruction Register.Virtual] -> Allocation
-coalesce graph classes initialAllocation instructions =
-  foldl' go initialAllocation [(r1, r2) | X86.Mov (X86.Register r1) (X86.Register r2) <- instructions, r1 /= r2]
+coalesce initialGraph initialClasses initialAllocation instructions = do
+  let (_, _, renamedAllocation, renaming, renamedRegisters) =
+        Register.runVirtualSupply (Register.V $ lastRegisterNum + 1) $
+          foldlM go (initialGraph, initialClasses, initialAllocation, mempty, mempty) [(r1, r2) | X86.Mov (X86.Register r1) (X86.Register r2) <- instructions, r1 /= r2]
+  EnumSet.foldl'
+    (\allocation original -> EnumMap.insert original (EnumMap.findWithDefault (error $ "no allocation " <> show (original, renamedAllocation, renaming)) (renamed original renaming) renamedAllocation) allocation)
+    initialAllocation
+    renamedRegisters
   where
-    go :: Allocation -> (Register.Virtual, Register.Virtual) -> Allocation
-    go allocation (r1, r2)
-      | colour1 == colour2 = allocation
-      | EnumSet.member r1 neighbours = allocation
+    (Register.V lastRegisterNum, _) = EnumMap.findMax initialAllocation
+    renamed r renaming
+      | r' == r = r'
+      | otherwise = renamed r' renaming
+      where
+        r' = EnumMap.findWithDefault r r renaming
+    go
+      :: (Graph, Classes, Allocation, EnumMap Register.Virtual Register.Virtual, EnumSet Register.Virtual)
+      -> (Register.Virtual, Register.Virtual)
+      -> Register.VirtualSupply (Graph, Classes, Allocation, EnumMap Register.Virtual Register.Virtual, EnumSet Register.Virtual)
+    go unchanged@(!graph, !classes, !allocation, !renaming, !renamedRegisters) (r1, r2)
+      | r1' == r2' = pure unchanged
+      | EnumSet.member r1' neighbours = pure unchanged
       | otherwise = do
-          let class_ = BitSet.intersection (classes EnumMap.! r1) (classes EnumMap.! r2)
+          let class_ = BitSet.intersection (classes EnumMap.! r1') (classes EnumMap.! r2')
               neighbourRegisters =
                 EnumSet.foldl'
                   ( \used neighbour ->
@@ -148,11 +169,18 @@ coalesce graph classes initialAllocation instructions =
                   )
                   mempty
                   neighbours
-              possibleRegisters = BitSet.delete scratchRegister $ BitSet.intersection class_ (BitSet.complement neighbourRegisters)
+              possibleRegisters = BitSet.delete scratchRegister $ BitSet.difference class_ neighbourRegisters
           case possibleRegisters of
-            physicalReg BitSet.:< _ -> EnumMap.insert r1 (Register physicalReg) $ EnumMap.insert r2 (Register physicalReg) allocation
-            BitSet.Empty -> allocation
+            BitSet.Empty -> pure unchanged
+            physicalReg BitSet.:< _ -> do
+              r <- Register.fresh
+              let graph' = addEdges [(r, n) | n <- EnumSet.toList neighbours] $ delete r1' $ delete r2' graph
+                  classes' = EnumMap.insert r class_ $ EnumMap.delete r1' $ EnumMap.delete r2' classes
+                  allocation' = EnumMap.insert r (Register physicalReg) $ EnumMap.delete r1' $ EnumMap.delete r2' allocation
+                  renaming' = EnumMap.insert r1' r $ EnumMap.insert r2' r renaming
+                  renamedRegisters' = EnumSet.insert r1 $ EnumSet.insert r2 renamedRegisters
+              pure (graph', classes', allocation', renaming', renamedRegisters')
       where
-        neighbours = graph EnumMap.! r1 <> graph EnumMap.! r2
-        colour1 = allocation EnumMap.! r1
-        colour2 = allocation EnumMap.! r2
+        r1' = renamed r1 renaming
+        r2' = renamed r2 renaming
+        neighbours = graph EnumMap.! r1' <> graph EnumMap.! r2'
