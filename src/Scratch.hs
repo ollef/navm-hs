@@ -16,6 +16,7 @@ import Target.X86.Printer.SSA as SSA
 import Target.X86.Register.Class as X86.Register
 import Target.X86.RegisterAllocation as Allocation
 import Target.X86.RegisterAllocation.Legalisation
+import Target.X86.RegisterAllocation.SpillInsertion
 
 program :: [Instruction Register.Virtual]
 program =
@@ -60,6 +61,9 @@ coalesced = map (fmap (coalescedAllocation EnumMap.!)) splitRegisters
 coalescedIrredundant :: [Instruction Location]
 coalescedIrredundant = removeRedundantMoves coalesced
 
+spilled :: [Instruction X86.Register]
+spilled = concatMap insertSpills coalescedIrredundant
+
 printSSA :: [Instruction Register.Virtual] -> IO ()
 printSSA instructions = Builder.hPutBuilder stdout $ SSA.printInstructions Register.printVirtual instructions
 
@@ -72,3 +76,7 @@ printAllocated instructions =
           Allocation.Stack (StackSlot s) -> "[stack slot " <> Builder.wordDec s <> "]"
       )
       instructions
+
+printSpilled :: [Instruction X86.Register] -> IO ()
+printSpilled =
+  Builder.hPutBuilder stdout . X86.printInstructions
