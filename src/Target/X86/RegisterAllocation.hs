@@ -163,25 +163,32 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
       | otherwise = do
           let class_ = BitSet.intersection (classes EnumMap.! r1') (classes EnumMap.! r2')
               neighbourRegisters =
-                EnumSet.foldl'
-                  ( \used neighbour ->
-                      used <> case allocation EnumMap.! neighbour of
-                        Register r -> BitSet.singleton r
-                        Stack _ -> mempty
-                  )
-                  mempty
-                  neighbours
+                BitSet.fromList
+                  [ r
+                  | neighbour <- EnumSet.toList neighbours
+                  , Register r <- [allocation EnumMap.! neighbour]
+                  ]
               possibleRegisters = BitSet.delete scratchRegister $ BitSet.difference class_ neighbourRegisters
-          case possibleRegisters of
-            BitSet.Empty -> pure unchanged
-            physicalReg BitSet.:< _ -> do
-              r <- Register.fresh
-              let graph' = addEdges [(r, n) | n <- EnumSet.toList neighbours] $ delete r1' $ delete r2' graph
-                  classes' = EnumMap.insert r class_ $ EnumMap.delete r1' $ EnumMap.delete r2' classes
-                  allocation' = EnumMap.insert r (Register physicalReg) $ EnumMap.delete r1' $ EnumMap.delete r2' allocation
-                  renaming' = EnumMap.insert r1' r $ EnumMap.insert r2' r renaming
-                  renamedRegisters' = EnumSet.insert r1 $ EnumSet.insert r2 renamedRegisters
-              pure (graph', classes', allocation', renaming', renamedRegisters')
+              location = case possibleRegisters of
+                BitSet.Empty -> do
+                  let neighbourSlots =
+                        EnumSet.fromList
+                          [ s
+                          | neighbour <- EnumSet.toList neighbours
+                          , Stack s <- [allocation EnumMap.! neighbour]
+                          ]
+                      slot = case EnumSet.maxView neighbourSlots of
+                        Nothing -> 0
+                        Just (s, _) -> s + 1
+                  Stack slot
+                physicalReg BitSet.:< _ -> Register physicalReg
+          r <- Register.fresh
+          let graph' = addEdges [(r, n) | n <- EnumSet.toList neighbours] $ delete r1' $ delete r2' graph
+              classes' = EnumMap.insert r class_ $ EnumMap.delete r1' $ EnumMap.delete r2' classes
+              allocation' = EnumMap.insert r location $ EnumMap.delete r1' $ EnumMap.delete r2' allocation
+              renaming' = EnumMap.insert r1' r $ EnumMap.insert r2' r renaming
+              renamedRegisters' = EnumSet.insert r1 $ EnumSet.insert r2 renamedRegisters
+          pure (graph', classes', allocation', renaming', renamedRegisters')
       where
         r1' = renamed r1 renaming
         r2' = renamed r2 renaming
