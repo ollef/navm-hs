@@ -8,10 +8,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.BitSet as BitSet
 import Data.EnumMap (EnumMap)
-import qualified Data.EnumMap as EnumMap
-import Data.Functor.Compose
 import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HashMap
 import Register (fresh)
 import qualified Register
 import Target.X86.Assembly
@@ -74,39 +71,6 @@ insertMovesAroundConstrainedOccurrences instruction = do
             X86.Register.Use -> ([Mov (Register reg') (Register reg)], mempty)
           pure reg'
       | otherwise = pure reg
-
-splitRegistersWithDifferingOccurrenceClasses
-  :: Instruction Register.Virtual
-  -> StateT RegisterVariants Register.VirtualSupply [Instruction Register.Virtual]
-splitRegistersWithDifferingOccurrenceClasses instruction = do
-  (instruction', (before, after)) <- runWriterT $ X86.Register.mapMWithClass go instruction
-  pure $ before <> [instruction'] <> after
-  where
-    go occurrence class_ reg = do
-      let alterReg Nothing =
-            Compose $
-              pure (reg, Just $ HashMap.singleton class_ reg)
-          alterReg (Just classMap) = Compose $ do
-            (reg', classMap') <- getCompose $ HashMap.alterF alterClass class_ classMap
-            pure
-              ( reg'
-              , Just classMap'
-              )
-          alterClass Nothing = Compose $ do
-            reg' <- lift $ lift fresh
-            tell $ case occurrence of
-              X86.Register.Definition ->
-                (mempty, [Mov (Register reg) (Register reg')])
-              X86.Register.Use ->
-                ([Mov (Register reg') (Register reg)], mempty)
-            pure (reg', Just reg')
-          alterClass (Just reg') =
-            Compose $
-              pure (reg', Just reg')
-      variants <- get
-      (reg', variants') <- getCompose $ EnumMap.alterF alterReg reg variants
-      put variants'
-      pure reg'
 
 concatMapM :: (Applicative m, Monad t, Traversable t) => (a -> m (t b)) -> t a -> m (t b)
 concatMapM f = fmap join . traverse f
