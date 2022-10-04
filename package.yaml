@@ -40,6 +40,7 @@ library:
     - primitive
     - psqueues
     - unordered-containers
+    - wide-word
 
 executables:
   navm-hs:
