@@ -160,6 +160,7 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
     go unchanged@(!graph, !classes, !allocation, !renaming, !renamedRegisters) (r1, r2)
       | r1' == r2' = pure unchanged
       | EnumSet.member r1' neighbours = pure unchanged
+      | locationType l1 /= locationType l2 = pure unchanged
       | otherwise = do
           let class_ = BitSet.intersection (classes EnumMap.! r1') (classes EnumMap.! r2')
               neighbourRegisters =
@@ -192,4 +193,9 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
       where
         r1' = renamed r1 renaming
         r2' = renamed r2 renaming
+        l1 = allocation EnumMap.! r1'
+        l2 = allocation EnumMap.! r2'
+        locationType :: Location -> Int
+        locationType Register {} = 0
+        locationType Stack {} = 1
         neighbours = graph EnumMap.! r1' <> graph EnumMap.! r2'
