@@ -33,7 +33,7 @@ interpret state instruction = case instruction of
   X86.Ret -> error "interpret ret"
   X86.Mov dst src -> outputOperand dst (inputOperand src) state
   X86.MovImmediate64 dst src -> writeRegister dst (fromIntegral src) state
-  X86.Define _ -> error "interpret define label"
+  X86.Define _ -> state
   where
     inputOperand operand = case operand of
       X86.Immediate imm -> fromIntegral imm
