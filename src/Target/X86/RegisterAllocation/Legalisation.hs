@@ -1,5 +1,6 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Target.X86.RegisterAllocation.Legalisation where
 
@@ -7,56 +8,40 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Writer
 import qualified Data.BitSet as BitSet
-import Data.EnumMap (EnumMap)
-import Data.HashMap.Lazy (HashMap)
 import Register (fresh)
 import qualified Register
 import Target.X86.Assembly
+import qualified Target.X86.Assembly as X86
 import qualified Target.X86.Register.Class as X86.Register
 
 legaliseOperands
   :: Instruction Register.Virtual
   -> Register.VirtualSupply [Instruction Register.Virtual]
-legaliseOperands instruction =
-  case instruction of
-    Add a@(Memory _) b c@(Memory _) -> do
-      c' <- Register <$> Register.fresh
-      concatMapM
-        legaliseOperands
-        [ Mov c' c
-        , Add a b c'
-        ]
-    Add a b c
-      | a /= b ->
-          concatMapM
-            legaliseOperands
-            [ Mov a b
-            , Add a a c
-            ]
-    Add {} -> pure [instruction]
-    Mul a b c@(Immediate _) -> do
-      c' <- Register <$> Register.fresh
-      concatMapM
-        legaliseOperands
-        [ Mov c' c
-        , Mul a b c'
-        ]
-    Mul {} -> pure [instruction]
-    Jmp {} -> pure [instruction]
-    Call {} -> pure [instruction]
-    Ret -> pure [Ret]
-    Mov a@(Memory _) b@(Memory _) -> do
-      b' <- Register <$> Register.fresh
-      pure
-        [ Mov b' b
-        , Mov a b'
-        ]
-    Mov {} -> pure [instruction]
-    MovImmediate64 {} -> pure [instruction]
-    Define {} -> pure [instruction]
-
-type RegisterVariants =
-  EnumMap Register.Virtual (HashMap X86.Register.Class Register.Virtual)
+legaliseOperands instruction = do
+  (instruction', (before, after)) <-
+    runWriterT $
+      X86.Register.constrain
+        X86.Register.Constrainers
+          { registerOccurrence = \_ _ reg -> pure reg
+          , forceSame
+          , forceRegister
+          }
+        instruction
+  pure $ before <> [instruction'] <> after
+  where
+    forceSame dst@(X86.Register.Destination dst') src@(X86.Register.Source src')
+      | src' == dst' = pure (dst, src)
+    forceSame (X86.Register.Destination dst@(X86.Register _)) (X86.Register.Source src) = do
+      tell ([Mov dst src], [])
+      pure (X86.Register.Destination dst, X86.Register.Source dst)
+    forceSame (X86.Register.Destination dst) (X86.Register.Source src) = do
+      reg <- Register <$> lift Register.fresh
+      tell ([Mov reg src], [Mov dst reg])
+      pure (X86.Register.Destination reg, X86.Register.Source reg)
+    forceRegister _ (X86.Register.Source src) = do
+      reg <- Register <$> lift Register.fresh
+      tell ([Mov reg src], [])
+      pure $ X86.Register.Source reg
 
 insertMovesAroundConstrainedOccurrences :: Instruction Register.Virtual -> Register.VirtualSupply [Instruction Register.Virtual]
 insertMovesAroundConstrainedOccurrences instruction = do
