@@ -323,7 +323,7 @@ assembleInstruction instruction =
         opcode 0xff
           <> address 0 addr
           <> modRMExt 2
-    Ret -> Builder.word8 0xc3 -- RET
+    Ret -> Builder.word8 0xc3
     MovImmediate64 dst (toImm32 -> Just imm32) ->
       assembleInstruction $ Mov (Register dst) (Immediate imm32)
     MovImmediate64 dst imm64 -> do
