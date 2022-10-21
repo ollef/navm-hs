@@ -1,9 +1,11 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Target.X86.Random where
 
 import Control.Applicative
 import Control.Monad
+import qualified Data.BitSet as BitSet
 import Data.Int
 import Data.List (sort)
 import Data.String
@@ -12,13 +14,24 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Label (Label)
 import Target.X86.Assembly
+import qualified Target.X86.Register.Class as Register
 
 generateInstructions :: Gen [Instruction Register]
 generateInstructions = do
   labels <- Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
   instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction labels
-  labelPositions <- Gen.list (Range.singleton $ length labels) $ Gen.int $ Range.constant 0 $ length instructions
-  pure $ defineLabels 0 (zip labels $ sort labelPositions) instructions
+  instructions' <-
+    mapM
+      ( Register.constrain
+          Register.Constrainers
+            { registerOccurrence = \_ class_ () -> generateRegister class_
+            , forceSame = \(Register.Destination dst) _ -> pure (Register.Destination dst, Register.Source dst)
+            , forceRegister = \class_ _ -> Register.Source . Register <$> generateRegister class_
+            }
+      )
+      instructions
+  labelPositions <- Gen.list (Range.singleton $ length labels) $ Gen.int $ Range.constant 0 $ length instructions'
+  pure $ defineLabels 0 (zip labels $ sort labelPositions) instructions'
   where
     defineLabels _pos [] is = is
     defineLabels _pos ls [] = Define . fst <$> ls
@@ -26,52 +39,44 @@ generateInstructions = do
       | pos >= lpos = Define l : defineLabels pos ls' is
       | otherwise = i : defineLabels (pos + 1) ls is'
 
-generateInstruction :: [Label] -> Gen (Instruction Register)
+generateInstruction :: [Label] -> Gen (Instruction ())
 generateInstruction labels =
   Gen.choice
-    [ do
-        dst <- generateDestinationOperand labels
-        src <- generateOperand labels $ Just dst
-        pure $ Add dst dst src
-    , Mul (RDX, RAX) RAX <$> generateRegisterOrAddressOperand labels
+    [ Add <$> generateDestinationOperand labels <*> generateOperand labels <*> generateOperand labels
+    , Mul ((), ()) () <$> generateRegisterOrAddressOperand labels
     , Jmp <$> generateJmpOperand labels
-    , Call <$> generateOperand labels Nothing
+    , Call <$> generateOperand labels
     , pure Ret
-    , do
-        dst <- generateDestinationOperand labels
-        src <- generateOperand labels $ Just dst
-        pure $ Mov dst src
-    , MovImmediate64 <$> generateRegister <*> Gen.int64 Range.linearBounded
+    , Mov <$> generateDestinationOperand labels <*> generateOperand labels
+    , MovImmediate64 () <$> Gen.int64 Range.linearBounded
     ]
 
-generateOperand :: [Label] -> Maybe (Operand Register) -> Gen (Operand Register)
-generateOperand labels dst =
-  Gen.choice $
-    [ Immediate <$> generateImmediate
-    , Register <$> generateRegister
-    ]
-      <> case dst of
-        Just (Memory _) -> []
-        _ -> [Memory <$> generateAddress labels]
-
-generateJmpOperand :: [Label] -> Gen (JmpOperand Register)
-generateJmpOperand labels =
+generateDestinationOperand :: [Label] -> Gen (Operand ())
+generateDestinationOperand labels =
   Gen.choice
-    [ JmpRelative <$> generateOptionalLabel labels <*> generateImmediate
-    , JmpAbsolute <$> generateOperand labels Nothing
-    ]
-
-generateRegisterOrAddressOperand :: [Label] -> Gen (Operand Register)
-generateRegisterOrAddressOperand labels =
-  Gen.choice
-    [ Register <$> generateRegister
+    [ pure $ Register ()
     , Memory <$> generateAddress labels
     ]
 
-generateDestinationOperand :: [Label] -> Gen (Operand Register)
-generateDestinationOperand labels =
+generateOperand :: [Label] -> Gen (Operand ())
+generateOperand labels =
   Gen.choice
-    [ Register <$> generateRegister
+    [ Immediate <$> generateImmediate
+    , pure $ Register ()
+    , Memory <$> generateAddress labels
+    ]
+
+generateJmpOperand :: [Label] -> Gen (JmpOperand ())
+generateJmpOperand labels =
+  Gen.choice
+    [ JmpRelative <$> generateOptionalLabel labels <*> generateImmediate
+    , JmpAbsolute <$> generateOperand labels
+    ]
+
+generateRegisterOrAddressOperand :: [Label] -> Gen (Operand ())
+generateRegisterOrAddressOperand labels =
+  Gen.choice
+    [ pure $ Register ()
     , Memory <$> generateAddress labels
     ]
 
@@ -86,10 +91,10 @@ generateLabel labels = pure $ Gen.element labels
 generateOptionalLabel :: [Label] -> Gen (Maybe Label)
 generateOptionalLabel labels = fmap join $ optional $ sequence $ generateLabel labels
 
-generateRegister :: Gen Register
-generateRegister = Gen.enumBounded
+generateRegister :: Register.Class -> Gen Register
+generateRegister = Gen.element . BitSet.toList
 
-generateAddress :: [Label] -> Gen (Address Register)
+generateAddress :: [Label] -> Gen (Address ())
 generateAddress labels =
   Address
     <$> generateBase
@@ -98,12 +103,11 @@ generateAddress labels =
   where
     generateDisplacement = generateImmediate
 
-generateBase :: Gen (Base Register)
+generateBase :: Gen (Base ())
 generateBase =
   Gen.choice
-    [ Absolute <$> optional generateRegister <*> optional generateScaledIndexRegister
+    [ Absolute <$> optional (pure ()) <*> optional generateScaledIndexRegister
     , pure Relative
     ]
   where
-    generateScaledIndexRegister = (,) <$> generateIndexRegister <*> Gen.enumBounded
-    generateIndexRegister = Gen.filter (/= RSP) generateRegister
+    generateScaledIndexRegister = (,) () <$> Gen.enumBounded
