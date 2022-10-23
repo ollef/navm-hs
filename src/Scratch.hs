@@ -13,7 +13,6 @@ import qualified Register
 import System.IO
 import Target.X86 as X86
 import Target.X86.Printer.SSA as SSA
-import Target.X86.Register.Class as X86.Register
 import Target.X86.RegisterAllocation as Allocation
 import Target.X86.RegisterAllocation.Legalisation
 import Target.X86.RegisterAllocation.SpillInsertion
@@ -40,7 +39,7 @@ splitRegisters =
 graph :: Graph
 graph = buildGraph splitRegisters
 
-classes :: EnumMap Register.Virtual X86.Register.Class
+classes :: EnumMap Register.Virtual X86.Class
 classes = registerClasses splitRegisters
 
 allocation :: Allocation

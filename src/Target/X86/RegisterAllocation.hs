@@ -22,7 +22,8 @@ import Data.Ord
 import Register (FromRegister, RegisterType)
 import qualified Register
 import qualified Target.X86.Assembly as X86
-import qualified Target.X86.Register.Class as X86.Register
+import Target.X86.Constraints
+import qualified Target.X86.Register as X86.Register
 
 type Graph = EnumMap Register.Virtual (EnumSet Register.Virtual)
 
@@ -61,10 +62,10 @@ buildGraph =
     go instruction (graph, liveOuts) = (graph', liveIns)
       where
         liveIns =
-          X86.Register.foldWithClass
+          foldWithClass
             ( \occ _ reg -> case occ of
-                X86.Register.Definition -> EnumSet.delete reg
-                X86.Register.Use -> EnumSet.insert reg
+                Definition -> EnumSet.delete reg
+                Use -> EnumSet.insert reg
             )
             liveOuts
             instruction
@@ -73,11 +74,11 @@ buildGraph =
           X86.Mov (X86.Register dst) (X86.Register src) ->
             addEdges [(reg, dst) | reg <- EnumSet.toList liveOuts, reg /= src, reg /= dst] graph
           _ ->
-            X86.Register.foldWithClass
+            foldWithClass
               ( \occ _ reg ->
                   case occ of
-                    X86.Register.Definition -> addEdges [(reg, reg') | reg' <- EnumSet.toList liveOuts, reg /= reg']
-                    X86.Register.Use -> id
+                    Definition -> addEdges [(reg, reg') | reg' <- EnumSet.toList liveOuts, reg /= reg']
+                    Use -> id
               )
               graph
               instruction
@@ -85,7 +86,7 @@ buildGraph =
 registerClasses :: [X86.Instruction Register.Virtual] -> Classes
 registerClasses =
   EnumMap.unionsWith BitSet.intersection
-    . concatMap (toList . X86.Register.mapWithClass (\_ class_ reg -> EnumMap.singleton reg class_))
+    . concatMap (toList . mapWithClass (\_ class_ reg -> EnumMap.singleton reg class_))
 
 simplicialEliminationOrder :: Graph -> [Register.Virtual]
 simplicialEliminationOrder graph = go $ PSQ.fromList [(coerce r, Down 0, r) | (r, _) <- EnumMap.toList graph]

@@ -4,6 +4,8 @@
 
 module Target.X86.Register where
 
+import Data.BitSet (BitSet)
+import qualified Data.BitSet as BitSet
 import Data.Hashable
 import GHC.Generics
 import Register (FromRegister (..), RegisterType)
@@ -33,3 +35,8 @@ type instance RegisterType Register = Register
 
 instance FromRegister Register where
   fromRegister = id
+
+type Class = BitSet Register
+
+any :: Class
+any = BitSet.full

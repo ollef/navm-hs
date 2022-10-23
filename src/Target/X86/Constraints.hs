@@ -2,9 +2,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Target.X86.Register.Class where
+module Target.X86.Constraints where
 
-import Data.BitSet (BitSet)
 import qualified Data.BitSet as BitSet
 import Data.Bitraversable
 import Data.Foldable hiding (any)
@@ -13,13 +12,8 @@ import Data.Functor.Identity
 import Target.X86.Assembly
 import Prelude hiding (any)
 
-type Class = BitSet Register
-
 data Occurrence = Definition | Use
   deriving (Eq, Show)
-
-any :: Class
-any = BitSet.full
 
 mapWithClass
   :: (Occurrence -> Class -> reg -> reg')

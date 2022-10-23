@@ -14,7 +14,8 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Label (Label)
 import Target.X86.Assembly
-import qualified Target.X86.Register.Class as Register
+import Target.X86.Constraints
+import qualified Target.X86.Register as Register
 
 generateInstructions :: Gen [Instruction Register]
 generateInstructions = do
@@ -22,11 +23,11 @@ generateInstructions = do
   instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction labels
   instructions' <-
     mapM
-      ( Register.constrain
-          Register.Constrainers
+      ( constrain
+          Constrainers
             { registerOccurrence = \_ class_ () -> generateRegister class_
-            , forceSame = \(Register.Destination dst) _ -> pure (Register.Destination dst, Register.Source dst)
-            , forceRegister = \class_ _ -> Register.Source . Register <$> generateRegister class_
+            , forceSame = \(Destination dst) _ -> pure (Destination dst, Source dst)
+            , forceRegister = \class_ _ -> Source . Register <$> generateRegister class_
             }
       )
       instructions
