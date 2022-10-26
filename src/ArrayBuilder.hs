@@ -7,7 +7,10 @@
 
 module ArrayBuilder where
 
+import Control.Monad
 import Control.Monad.ST
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as ByteString
 import Data.Char
 import Data.Foldable
 import Data.Int
@@ -119,3 +122,11 @@ int32 = word32 . fromIntegral
 
 int64 :: Int64 -> ArrayBuilder
 int64 = word64 . fromIntegral
+
+byteString :: ByteString -> ArrayBuilder
+byteString bs = st (fromIntegral $ ByteString.length bs) $ \ptr ->
+  void $ foldlM go ptr [0 .. ByteString.length bs - 1]
+  where
+    go ptr i = do
+      writeOffPtr ptr 0 (ByteString.index bs i)
+      pure (advancePtr ptr 1)
