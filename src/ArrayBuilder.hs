@@ -71,6 +71,9 @@ instance Monoid ArrayBuilder where
 skip :: Offset -> ArrayBuilder
 skip bytes = ArrayBuilder (coerce bytes) $ \(# s, _addr #) -> s
 
+zeros :: Offset -> ArrayBuilder
+zeros bytes = st bytes $ \ptr -> setPtr ptr (fromIntegral bytes) 0
+
 overlay :: ArrayBuilder -> ArrayBuilder -> ArrayBuilder
 overlay ab1 ab2 =
   ArrayBuilder
