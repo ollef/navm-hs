@@ -8,6 +8,7 @@
 module ArrayBuilder where
 
 import Control.Monad.ST
+import Data.Char
 import Data.Foldable
 import Data.Int
 import Data.Primitive.PrimArray
@@ -88,6 +89,9 @@ overlays builders =
     go (ArrayBuilder _ function_ : builders') arg@(# _, addr #) = do
       let !s' = function_ arg
       go builders' (# s', addr #)
+
+char8 :: Char -> ArrayBuilder
+char8 = word8 . fromIntegral . ord
 
 word8 :: Word8 -> ArrayBuilder
 word8 w = st 1 $ \ptr -> writeOffPtr ptr 0 w
