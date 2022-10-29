@@ -24,26 +24,35 @@ file code =
         sectionHeaders
           SectionHeadersParameters
             { codeSection =
-                SectionInfo
+                Location
                   { offset = fromIntegral $ ArrayBuilder.size r2
                   , size = fromIntegral $ ArrayBuilder.size code
                   }
             , sectionNameSection =
-                SectionInfo
+                Location
                   { offset = fromIntegral $ ArrayBuilder.size r4
                   , size = fromIntegral $ ArrayBuilder.size sectionNames
                   }
             , sectionNameIndices
             }
       (sectionNames, sectionNameIndices) = stringTable $ fst <$> sectionHeaders_
+      programHeaders_ =
+        programHeaders
+          ProgramHeadersParameters
+            { codeSegment =
+                Location
+                  { offset = fromIntegral $ ArrayBuilder.size r2
+                  , size = fromIntegral $ ArrayBuilder.size code
+                  }
+            }
       r1 =
         elfHeader
           ElfHeaderParameters
             { programHeader =
                 HeaderInfo
                   { offset = fromIntegral $ ArrayBuilder.size r1
-                  , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size) $ listToMaybe programHeaders
-                  , entries = fromIntegral $ length programHeaders
+                  , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size) $ listToMaybe programHeaders_
+                  , entries = fromIntegral $ length programHeaders_
                   }
             , sectionHeader =
                 HeaderInfo
@@ -53,12 +62,19 @@ file code =
                   }
             , sectionNameSectionEntryIndex = maybe (error "no section name section entry index") fromIntegral $ List.findIndex ((== ".shstrtab") . fst) sectionHeaders_
             }
-      r2 = r1 <> mconcat programHeaders
+      r2 = padToMultipleOf (fromIntegral pageSize) $ r1 <> mconcat programHeaders_
       r3 = r2 <> code
       r4 = r3 <> data_
       r5 = r4 <> sectionNames
       r6 = r5 <> foldMap snd sectionHeaders_
    in r6
+
+padToMultipleOf :: Offset -> ArrayBuilder -> ArrayBuilder
+padToMultipleOf x b = b <> ArrayBuilder.zeros padding
+  where
+    size = ArrayBuilder.size b
+    desiredSize = ((size + x - 1) `div` x) * x
+    padding = desiredSize - size
 
 data HeaderInfo = HeaderInfo
   { offset :: !Word64
@@ -137,21 +153,45 @@ stringTable strings = foldl' go mempty ("" : strings)
         string
         indices
 
-programHeaders :: [ArrayBuilder]
-programHeaders = undefined
+data Location = Location
+  { offset :: !Word64
+  , size :: !Word64
+  }
+
+newtype ProgramHeadersParameters = ProgramHeadersParameters
+  { codeSegment :: Location
+  }
+
+programHeaders :: ProgramHeadersParameters -> [ArrayBuilder]
+programHeaders ProgramHeadersParameters {..} =
+  [ codeSegmentProgramHeader
+  ]
+  where
+    codeSegmentProgramHeader =
+      mconcat
+        [ ArrayBuilder.word32 0x1 -- load
+        , ArrayBuilder.word32 (0x1 .|. 0x4) -- flags: execute, read
+        , ArrayBuilder.word64 codeSegment.offset
+        , -- offset
+          ArrayBuilder.word64 entrypointAddress -- virtual address
+        , ArrayBuilder.word64 0 -- physical address
+        , ArrayBuilder.word64 codeSegment.size
+        , -- file size
+          ArrayBuilder.word64 codeSegment.size
+        , -- memory size
+          ArrayBuilder.word64 pageSize -- alignment
+        ]
+
+pageSize :: Word64
+pageSize = 0x1000
 
 data_ :: ArrayBuilder
 data_ = mempty
 
 data SectionHeadersParameters = SectionHeadersParameters
-  { codeSection :: !SectionInfo
-  , sectionNameSection :: !SectionInfo
+  { codeSection :: !Location
+  , sectionNameSection :: !Location
   , sectionNameIndices :: HashMap ByteString Offset
-  }
-
-data SectionInfo = SectionInfo
-  { offset :: !Word64
-  , size :: !Word64
   }
 
 sectionHeaders :: SectionHeadersParameters -> [(ByteString, ArrayBuilder)]
