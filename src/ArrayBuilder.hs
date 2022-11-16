@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RankNTypes #-}
@@ -9,6 +10,7 @@ module ArrayBuilder where
 
 import Control.Monad
 import Control.Monad.ST
+import Control.Monad.State
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Char
@@ -29,6 +31,18 @@ data ArrayBuilder = ArrayBuilder
   { size :: !Offset
   , function :: !(forall s. (# State# s, Addr# #) -> State# s)
   }
+
+newtype ArrayBuilderM a = ArrayBuilderM (State ArrayBuilder a)
+  deriving (Functor, Applicative, Monad, MonadFix)
+
+exec :: ArrayBuilderM a -> ArrayBuilder
+exec (ArrayBuilderM s) = execState s mempty
+
+offset :: ArrayBuilderM Offset
+offset = ArrayBuilderM $ gets size
+
+emit :: ArrayBuilder -> ArrayBuilderM ()
+emit ab = ArrayBuilderM $ modify (<> ab)
 
 size :: ArrayBuilder -> Offset
 size ab = ab.size
