@@ -2,11 +2,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Target.ELF where
 
-import ArrayBuilder (ArrayBuilder)
+import ArrayBuilder (ArrayBuilder, ArrayBuilderM)
 import qualified ArrayBuilder
 import Data.Bits
 import Data.ByteString (ByteString)
@@ -20,73 +21,77 @@ import Offset (Offset)
 
 file :: ArrayBuilder -> ArrayBuilder
 file code =
-  let sectionHeaders_ =
-        sectionHeaders
-          SectionHeadersParameters
-            { codeSection =
-                Location
-                  { offset = fromIntegral $ ArrayBuilder.size r2
-                  , size = fromIntegral $ ArrayBuilder.size code
-                  }
-            , sectionNameSection =
-                Location
-                  { offset = fromIntegral $ ArrayBuilder.size r4
-                  , size = fromIntegral $ ArrayBuilder.size sectionNames
-                  }
-            , sectionNameIndices
-            }
-      (sectionNames, sectionNameIndices) = stringTable $ fst <$> sectionHeaders_
-      programHeaders_ =
-        programHeaders
-          ProgramHeadersParameters
-            { codeSegment =
-                Location
-                  { offset = fromIntegral $ ArrayBuilder.size r2
-                  , size = fromIntegral $ ArrayBuilder.size code
-                  }
-            }
-      r1 =
-        elfHeader
-          ElfHeaderParameters
-            { programHeader =
-                HeaderInfo
-                  { offset = fromIntegral $ ArrayBuilder.size r1
-                  , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size) $ listToMaybe programHeaders_
-                  , entries = fromIntegral $ length programHeaders_
-                  }
-            , sectionHeader =
-                HeaderInfo
-                  { offset = fromIntegral $ ArrayBuilder.size r5
-                  , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size . snd) $ listToMaybe sectionHeaders_
-                  , entries = fromIntegral $ length sectionHeaders_
-                  }
-            , sectionNameSectionEntryIndex = maybe (error "no section name section entry index") fromIntegral $ List.findIndex ((== ".shstrtab") . fst) sectionHeaders_
-            }
-      r2 = padToMultipleOf (fromIntegral pageSize) $ r1 <> mconcat programHeaders_
-      r3 = r2 <> code
-      r4 = r3 <> data_
-      r5 = r4 <> sectionNames
-      r6 = r5 <> foldMap snd sectionHeaders_
-   in r6
+  ArrayBuilder.exec $ mdo
+    let sectionHeaders_ =
+          sectionHeaders
+            SectionHeadersParameters
+              { codeSection =
+                  Location
+                    { offset = fromIntegral codeSegmentOffset
+                    , size = fromIntegral $ ArrayBuilder.size code
+                    }
+              , sectionNameSection =
+                  Location
+                    { offset = fromIntegral sectionNameSectionOffset
+                    , size = fromIntegral $ ArrayBuilder.size sectionNames
+                    }
+              , sectionNameIndices
+              }
+    let (sectionNames, sectionNameIndices) = stringTable $ fst <$> sectionHeaders_
+    let programHeaders_ =
+          programHeaders
+            ProgramHeadersParameters
+              { codeSegment =
+                  Location
+                    { offset = fromIntegral codeSegmentOffset
+                    , size = fromIntegral $ ArrayBuilder.size code
+                    }
+              }
+    ArrayBuilder.emit $
+      elfHeader
+        ElfHeaderParameters
+          { programHeader =
+              HeaderInfo
+                { offset = fromIntegral programHeaderOffset
+                , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size) $ listToMaybe programHeaders_
+                , entries = fromIntegral $ length programHeaders_
+                }
+          , sectionHeader =
+              HeaderInfo
+                { offset = fromIntegral sectionHeaderOffset
+                , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size . snd) $ listToMaybe sectionHeaders_
+                , entries = fromIntegral $ length sectionHeaders_
+                }
+          , sectionNameSectionEntryIndex = maybe (error "no section name section entry index") fromIntegral $ List.findIndex ((== ".shstrtab") . fst) sectionHeaders_
+          }
+    programHeaderOffset <- ArrayBuilder.offset
+    mapM_ ArrayBuilder.emit programHeaders_
+    padToMultipleOf $ fromIntegral pageSize
+    codeSegmentOffset <- ArrayBuilder.offset
+    ArrayBuilder.emit code
+    sectionNameSectionOffset <- ArrayBuilder.offset
+    ArrayBuilder.emit sectionNames
+    sectionHeaderOffset <- ArrayBuilder.offset
+    mapM_ (ArrayBuilder.emit . snd) sectionHeaders_
 
-padToMultipleOf :: Offset -> ArrayBuilder -> ArrayBuilder
-padToMultipleOf x b = b <> ArrayBuilder.zeros padding
-  where
-    size = ArrayBuilder.size b
-    desiredSize = ((size + x - 1) `div` x) * x
-    padding = desiredSize - size
+padToMultipleOf :: Offset -> ArrayBuilderM ()
+padToMultipleOf x = do
+  offset <- ArrayBuilder.offset
+  let desiredOffset = ((offset + x - 1) `div` x) * x
+      padding = desiredOffset - offset
+  ArrayBuilder.emit $ ArrayBuilder.zeros padding
 
 data HeaderInfo = HeaderInfo
-  { offset :: !Word64
-  , entrySize :: !Word16
-  , entries :: !Word16
+  { offset :: Word64
+  , entrySize :: Word16
+  , entries :: Word16
   }
   deriving (Show)
 
 data ElfHeaderParameters = ElfHeaderParameters
-  { programHeader :: !HeaderInfo
-  , sectionHeader :: !HeaderInfo
-  , sectionNameSectionEntryIndex :: !Word16
+  { programHeader :: HeaderInfo
+  , sectionHeader :: HeaderInfo
+  , sectionNameSectionEntryIndex :: Word16
   }
   deriving (Show)
 
@@ -154,8 +159,8 @@ stringTable strings = foldl' go mempty ("" : strings)
         indices
 
 data Location = Location
-  { offset :: !Word64
-  , size :: !Word64
+  { offset :: Word64
+  , size :: Word64
   }
 
 newtype ProgramHeadersParameters = ProgramHeadersParameters
@@ -189,8 +194,8 @@ data_ :: ArrayBuilder
 data_ = mempty
 
 data SectionHeadersParameters = SectionHeadersParameters
-  { codeSection :: !Location
-  , sectionNameSection :: !Location
+  { codeSection :: Location
+  , sectionNameSection :: Location
   , sectionNameIndices :: HashMap ByteString Offset
   }
 
