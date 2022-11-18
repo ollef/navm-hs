@@ -10,7 +10,7 @@ import qualified ArrayBuilder
 import qualified Data.ByteString.Builder as Builder
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
-import qualified Data.Primitive.PrimArray.IO as PrimArray
+import qualified Data.Primitive.ByteArray.IO as ByteArray
 import Register (FromRegister (fromRegister), RegisterType)
 import qualified Register
 import System.IO
@@ -100,4 +100,4 @@ elfExit :: ArrayBuilder
 elfExit = ELF.file assembledExit
 
 writeElfExit :: IO ()
-writeElfExit = PrimArray.writeFile "elf-exit" $ ArrayBuilder.run elfExit
+writeElfExit = ByteArray.writeFile "elf-exit" $ ArrayBuilder.run elfExit

@@ -7,7 +7,7 @@ import qualified ArrayBuilder
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.ByteString.Lazy.Char8 as Char8
-import qualified Data.Primitive.PrimArray.IO as PrimArray
+import qualified Data.Primitive.ByteArray.IO as ByteArray
 import Data.String
 import qualified Hedgehog
 import System.IO (hClose)
@@ -83,6 +83,6 @@ matchGNUAssembler instructions = do
             ByteString.Lazy.writeFile assemblyFileName assemblyCode
             callProcess "as" [assemblyFileName, "-o", objectFileName]
             callProcess "objcopy" ["-O", "binary", "-j", ".text", objectFileName, binaryFileName]
-            PrimArray.readFile binaryFileName
+            ByteArray.readFile binaryFileName
   let assembledInstructions = ArrayBuilder.run $ MachineCode.run $ assembleInstructions instructions
   assembledInstructions Hedgehog.=== gnuAssembledInstructions

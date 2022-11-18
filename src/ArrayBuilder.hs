@@ -4,6 +4,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
@@ -18,7 +19,7 @@ import qualified Data.ByteString.Internal as ByteString
 import Data.Char
 import Data.Foldable
 import Data.Int
-import Data.Primitive.PrimArray
+import Data.Primitive.ByteArray
 import Data.Primitive.Ptr
 import Data.Semigroup
 import Data.Word
@@ -38,7 +39,7 @@ data ArrayBuilder = ArrayBuilder
 
 instance Show ArrayBuilder where
   showsPrec _ ab =
-    foldrPrimArray (\c -> (showString (printf "%02x " c) .)) id (run ab)
+    foldrByteArray (\(c :: Word8) -> (showString (printf "%02x " c) .)) id (run ab)
 
 newtype ArrayBuilderM a = ArrayBuilderM (State ArrayBuilder a)
   deriving (Functor, Applicative, Monad, MonadFix)
@@ -67,17 +68,17 @@ st bytes f =
       let !(# s', () #) = inner s
       s'
 
-run :: ArrayBuilder -> PrimArray Word8
+run :: ArrayBuilder -> ByteArray
 run builder =
   runST $ do
-    arr <- newPinnedPrimArray $ fromIntegral $ size builder
-    let !(Ptr startAddr) = mutablePrimArrayContents arr
+    arr <- newPinnedByteArray $ fromIntegral $ size builder
+    let !(Ptr startAddr) = mutableByteArrayContents arr
     ST
       ( \s -> do
           let !s' = function builder (# s, startAddr #)
           (# s', () #)
       )
-    unsafeFreezePrimArray arr
+    unsafeFreezeByteArray arr
 
 instance Semigroup ArrayBuilder where
   ab1 <> ab2 =
@@ -145,10 +146,10 @@ int32 = word32 . fromIntegral
 int64 :: Int64 -> ArrayBuilder
 int64 = word64 . fromIntegral
 
-primArray :: PrimArray Word8 -> ArrayBuilder
-primArray arr =
-  st (fromIntegral $ sizeofPrimArray arr) \ptr ->
-    copyPrimArrayToPtr ptr arr 0 (sizeofPrimArray arr)
+byteArray :: ByteArray -> ArrayBuilder
+byteArray arr =
+  st (fromIntegral $ sizeofByteArray arr) \ptr ->
+    copyByteArrayToPtr ptr arr 0 (sizeofByteArray arr)
 
 byteString :: ByteString -> ArrayBuilder
 byteString (ByteString.BS foreignPtr sz) =
