@@ -14,15 +14,18 @@ printInstructions =
 printInstruction :: Instruction Register -> Builder
 printInstruction instruction =
   case instruction of
-    Add o1 _ o2 -> "  add " <> printOperand o1 <> ", " <> printOperand o2
-    Mul (RDX, RAX) RAX o -> "  mul " <> printOperand o
-    Mul {} -> error "invalid mul operands"
-    Jmp o -> "  jmp " <> printJmpOperand o
-    Call o -> "  call " <> printOperand o
-    Ret -> "  ret"
-    Mov o1 o2 -> "  mov " <> printOperand o1 <> ", " <> printOperand o2
-    MovImmediate64 r i -> "  mov " <> printRegister r <> ", " <> Builder.int64Dec i
-    Define label -> SSA.printLabel label <> ":"
+    Define _ -> ""
+    _ -> "  "
+    <> case instruction of
+      Add o1 _ o2 -> "add " <> printOperand o1 <> ", " <> printOperand o2
+      Mul (RDX, RAX) RAX o -> "mul " <> printOperand o
+      Mul {} -> error "invalid mul operands"
+      Jmp o -> "jmp " <> printJmpOperand o
+      Call o -> "call " <> printOperand o
+      Ret -> "ret"
+      Mov o1 o2 -> "mov " <> printOperand o1 <> ", " <> printOperand o2
+      MovImmediate64 r i -> "mov " <> printRegister r <> ", " <> Builder.int64Dec i
+      Define label -> SSA.printLabel label <> ":"
 
 printOperand :: Operand Register -> Builder
 printOperand = SSA.printOperand printRegister

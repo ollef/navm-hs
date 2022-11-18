@@ -17,28 +17,30 @@ printInstructions printRegister =
 printInstruction :: (v -> Builder) -> Instruction v -> Builder
 printInstruction printRegister instruction =
   case instruction of
-    Add a b c ->
-      "  "
-        <> printOperand printRegister a
-        <> " = add "
-        <> printOperand printRegister b
-        <> ", "
-        <> printOperand printRegister c
-    Mul (a, b) c d ->
-      "  ("
-        <> printRegister a
-        <> ", "
-        <> printRegister b
-        <> ") = mul "
-        <> printRegister c
-        <> ", "
-        <> printOperand printRegister d
-    Jmp o -> "  jmp " <> printJmpOperand printRegister o
-    Call o -> "  call " <> printOperand printRegister o
-    Ret -> "  ret"
-    Mov a b -> "  " <> printOperand printRegister a <> " = mov " <> printOperand printRegister b
-    MovImmediate64 r i -> "  " <> printRegister r <> " = mov " <> Builder.int64Dec i
-    Define label -> printLabel label <> ":"
+    Define {} -> ""
+    _ -> "  "
+    <> case instruction of
+      Add a b c ->
+        printOperand printRegister a
+          <> " = add "
+          <> printOperand printRegister b
+          <> ", "
+          <> printOperand printRegister c
+      Mul (a, b) c d ->
+        "("
+          <> printRegister a
+          <> ", "
+          <> printRegister b
+          <> ") = mul "
+          <> printRegister c
+          <> ", "
+          <> printOperand printRegister d
+      Jmp o -> "jmp " <> printJmpOperand printRegister o
+      Call o -> "call " <> printOperand printRegister o
+      Ret -> "ret"
+      Mov a b -> printOperand printRegister a <> " = mov " <> printOperand printRegister b
+      MovImmediate64 r i -> printRegister r <> " = mov " <> Builder.int64Dec i
+      Define label -> printLabel label <> ":"
 
 printOperand :: (v -> Builder) -> Operand v -> Builder
 printOperand printRegister operand =
