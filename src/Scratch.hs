@@ -5,13 +5,18 @@
 
 module Scratch where
 
+import ArrayBuilder (ArrayBuilder)
+import qualified ArrayBuilder
 import qualified Data.ByteString.Builder as Builder
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
+import qualified Data.Primitive.PrimArray.IO as PrimArray
 import Register (FromRegister (fromRegister), RegisterType)
 import qualified Register
 import System.IO
+import qualified Target.ELF as ELF
 import Target.X86 as X86
+import Target.X86.MachineCode as MachineCode
 import Target.X86.Printer.SSA as SSA
 import Target.X86.RegisterAllocation as Allocation
 import Target.X86.RegisterAllocation.Legalisation
@@ -79,3 +84,20 @@ printAllocated instructions =
 printSpilled :: [Instruction X86.Register] -> IO ()
 printSpilled =
   Builder.hPutBuilder stdout . X86.printInstructions
+
+exit :: MachineCode
+exit =
+  mconcat
+    [ mov rax 1
+    , mov rbx 22
+    , int 0x80
+    ]
+
+assembledExit :: ArrayBuilder
+assembledExit = MachineCode.run exit
+
+elfExit :: ArrayBuilder
+elfExit = ELF.file assembledExit
+
+writeElfExit :: IO ()
+writeElfExit = PrimArray.writeFile "elf-exit" $ ArrayBuilder.run elfExit
