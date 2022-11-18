@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -59,7 +60,7 @@ st :: Offset -> (forall s. Ptr Word8 -> ST s ()) -> ArrayBuilder
 st bytes f =
   ArrayBuilder
     bytes
-    $ \(# s, addr #) -> do
+    \(# s, addr #) -> do
       let (ST inner) = f (Ptr addr)
       let !(# s', () #) = inner s
       s'
@@ -91,16 +92,16 @@ instance Monoid ArrayBuilder where
   mconcat = foldl' (<>) mempty
 
 skip :: Offset -> ArrayBuilder
-skip bytes = ArrayBuilder (coerce bytes) $ \(# s, _addr #) -> s
+skip bytes = ArrayBuilder (coerce bytes) \(# s, _addr #) -> s
 
 zeros :: Offset -> ArrayBuilder
-zeros bytes = st bytes $ \ptr -> setPtr ptr (fromIntegral bytes) 0
+zeros bytes = st bytes \ptr -> setPtr ptr (fromIntegral bytes) 0
 
 overlay :: ArrayBuilder -> ArrayBuilder -> ArrayBuilder
 overlay ab1 ab2 =
   ArrayBuilder
     (max (size ab1) (size ab2))
-    $ \(# s, addr #) -> do
+    \(# s, addr #) -> do
       let !s' = function ab1 (# s, addr #)
       function ab2 (# s', addr #)
 
@@ -119,16 +120,16 @@ char8 :: Char -> ArrayBuilder
 char8 = word8 . fromIntegral . ord
 
 word8 :: Word8 -> ArrayBuilder
-word8 w = st 1 $ \ptr -> writeOffPtr ptr 0 w
+word8 w = st 1 \ptr -> writeOffPtr ptr 0 w
 
 word16 :: Word16 -> ArrayBuilder
-word16 w = st 2 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+word16 w = st 2 \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
 word32 :: Word32 -> ArrayBuilder
-word32 w = st 4 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+word32 w = st 4 \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
 word64 :: Word64 -> ArrayBuilder
-word64 w = st 8 $ \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
+word64 w = st 8 \ptr -> writeOffPtr (castPtr ptr) 0 $ ByteOrder.toLittleEndian w
 
 int8 :: Int8 -> ArrayBuilder
 int8 = word8 . fromIntegral
