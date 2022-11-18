@@ -15,7 +15,7 @@ import System.IO.Temp (withTempFile)
 import System.Process (callProcess)
 import Target.X86.Assembler
 import Target.X86.Assembly
-import qualified Target.X86.MachineCode.Builder as MachineCode.Builder
+import qualified Target.X86.MachineCode as MachineCode
 import Target.X86.Printer
 import Target.X86.Random
 
@@ -84,5 +84,5 @@ matchGNUAssembler instructions = do
             callProcess "as" [assemblyFileName, "-o", objectFileName]
             callProcess "objcopy" ["-O", "binary", "-j", ".text", objectFileName, binaryFileName]
             PrimArray.readFile binaryFileName
-  let assembledInstructions = ArrayBuilder.run $ MachineCode.Builder.run $ assembleInstructions instructions
+  let assembledInstructions = ArrayBuilder.run $ MachineCode.run $ assembleInstructions instructions
   assembledInstructions Hedgehog.=== gnuAssembledInstructions

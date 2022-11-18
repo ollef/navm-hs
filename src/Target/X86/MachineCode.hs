@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Target.X86.MachineCode.Builder where
+module Target.X86.MachineCode where
 
 import ArrayBuilder (ArrayBuilder)
 import qualified ArrayBuilder
