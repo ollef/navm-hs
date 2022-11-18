@@ -25,12 +25,17 @@ import GHC.Exts hiding (build)
 import GHC.ST
 import Offset (Offset (Offset))
 import qualified System.ByteOrder as ByteOrder
+import Text.Printf (printf)
 import Prelude
 
 data ArrayBuilder = ArrayBuilder
   { size :: !Offset
   , function :: !(forall s. (# State# s, Addr# #) -> State# s)
   }
+
+instance Show ArrayBuilder where
+  showsPrec _ ab =
+    foldrPrimArray (\c -> (showString (printf "%02x " c) .)) id (run ab)
 
 newtype ArrayBuilderM a = ArrayBuilderM (State ArrayBuilder a)
   deriving (Functor, Applicative, Monad, MonadFix)
