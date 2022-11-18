@@ -38,6 +38,7 @@ printInstruction printRegister instruction =
       Jmp o -> "jmp " <> printJmpOperand printRegister o
       Call o -> "call " <> printOperand printRegister o
       Ret -> "ret"
+      Int w -> "int 0x" <> Builder.word8Hex w
       Mov a b -> printOperand printRegister a <> " = mov " <> printOperand printRegister b
       MovImmediate64 r i -> printRegister r <> " = mov " <> Builder.int64Dec i
       Define label -> printLabel label <> ":"

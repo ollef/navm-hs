@@ -76,6 +76,7 @@ constrain Constrainers {..} instruction =
     Jmp (JmpAbsolute o) -> Jmp . JmpAbsolute <$> use any o
     Call o -> Call <$> use any o
     Ret -> pure Ret
+    Int w -> pure $ Int w
     Mov dst src -> do
       dst' <- def any dst
       src' <- use any src

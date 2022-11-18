@@ -48,6 +48,7 @@ generateInstruction labels =
     , Jmp <$> generateJmpOperand labels
     , Call <$> generateOperand labels
     , pure Ret
+    , Int <$> Gen.word8 Range.linearBounded
     , Mov <$> generateDestinationOperand labels <*> generateOperand labels
     , MovImmediate64 () <$> Gen.int64 Range.linearBounded
     ]

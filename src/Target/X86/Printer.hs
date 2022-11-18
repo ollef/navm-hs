@@ -23,6 +23,7 @@ printInstruction instruction =
       Jmp o -> "jmp " <> printJmpOperand o
       Call o -> "call " <> printOperand o
       Ret -> "ret"
+      Int w -> "int 0x" <> Builder.word8Hex w
       Mov o1 o2 -> "mov " <> printOperand o1 <> ", " <> printOperand o2
       MovImmediate64 r i -> "mov " <> printRegister r <> ", " <> Builder.int64Dec i
       Define label -> SSA.printLabel label <> ":"

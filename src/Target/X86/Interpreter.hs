@@ -31,6 +31,7 @@ interpret state instruction = case instruction of
   X86.Jmp _ -> error "interpret jmp"
   X86.Call _ -> error "interpret call"
   X86.Ret -> error "interpret ret"
+  X86.Int _ -> error "interpret int"
   X86.Mov dst src -> outputOperand dst (inputOperand src) state
   X86.MovImmediate64 dst src -> writeRegister dst (fromIntegral src) state
   X86.Define _ -> state

@@ -14,6 +14,7 @@ import Data.Bifunctor
 import Data.Int
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Word
 import GHC.Exts
 import Label (Label)
 import Register (FromRegister (..), RegisterType)
@@ -25,6 +26,7 @@ data Instruction reg
   | Jmp (JmpOperand reg)
   | Call (Operand reg)
   | Ret
+  | Int !Word8
   | Mov (Operand reg) (Operand reg)
   | MovImmediate64 !reg !Int64
   | Define !Label
@@ -67,6 +69,9 @@ call = fromInstruction . Call
 
 ret :: FromInstruction i => i
 ret = fromInstruction Ret
+
+int :: FromInstruction i => Word8 -> i
+int = fromInstruction . Int
 
 mov :: (reg ~ RegisterType i, FromInstruction i) => Operand reg -> Operand reg -> i
 mov o1 o2 = fromInstruction $ Mov o1 o2

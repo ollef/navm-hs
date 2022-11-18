@@ -324,6 +324,8 @@ assembleInstruction instruction =
           <> address 0 addr
           <> modRMExt 2
     Ret -> Builder.word8 0xc3
+    Int 0x3 -> Builder.word8 0xcc
+    Int w -> Builder.word8 0xcd <> Builder.word8 w
     MovImmediate64 dst (toImm32 -> Just imm32) ->
       assembleInstruction $ Mov (Register dst) (Immediate imm32)
     MovImmediate64 dst imm64 -> do
