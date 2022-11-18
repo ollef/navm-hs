@@ -27,7 +27,6 @@ import Data.Word
 import Label
 import Offset (Offset, offset)
 import qualified Offset
-import Target.X86.MachineCode
 import Prelude hiding (max, min)
 import qualified Prelude
 
@@ -202,12 +201,10 @@ toArrayBuilder (Builder initialParts) =
               (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
 
-run :: Builder -> MachineCode
+run :: Builder -> ArrayBuilder
 run builder =
-  MachineCode $
-    ArrayBuilder.run $
-      ArrayBuilder.overlays $
-        instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
+  ArrayBuilder.overlays $
+    instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
   where
     (instructions, labels) = toArrayBuilder builder
     useBuilder definition uses =
