@@ -30,7 +30,7 @@ import qualified Offset
 import Prelude hiding (max, min)
 import qualified Prelude
 
-newtype Builder = Builder (Tsil Part)
+newtype MachineCode = MachineCode (Tsil Part)
   deriving (Monoid)
 
 data Part
@@ -53,28 +53,28 @@ data LabelUse = LabelUse
   }
   deriving (Show)
 
-instance Semigroup Builder where
-  Builder parts1 <> Builder Tsil.Empty = Builder parts1
-  parts1 <> Builder (parts2 Tsil.:> part) = appendPart (parts1 <> Builder parts2) part
+instance Semigroup MachineCode where
+  MachineCode parts1 <> MachineCode Tsil.Empty = MachineCode parts1
+  parts1 <> MachineCode (parts2 Tsil.:> part) = appendPart (parts1 <> MachineCode parts2) part
 
-appendPart :: Builder -> Part -> Builder
-appendPart (Builder parts) part =
-  Builder $
+appendPart :: MachineCode -> Part -> MachineCode
+appendPart (MachineCode parts) part =
+  MachineCode $
     case part of
       Rigid builder2 -> case parts of
         parts' Tsil.:> Rigid builder1 -> parts' Tsil.:> Rigid (builder1 <> builder2)
         _ -> parts Tsil.:> part
       _ -> parts Tsil.:> part
 
-appendParts :: Builder -> [Part] -> Builder
+appendParts :: MachineCode -> [Part] -> MachineCode
 appendParts = foldl' appendPart
 
-define :: Label -> Builder
-define label = Builder $ pure $ Define label
+define :: Label -> MachineCode
+define label = MachineCode $ pure $ Define label
 
-useRelativeToEnd :: Label -> LabelUseSize -> Int -> Builder
+useRelativeToEnd :: Label -> LabelUseSize -> Int -> MachineCode
 useRelativeToEnd label labelSize displacement =
-  Builder [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = -byteSize, size = labelSize, displacement}]
+  MachineCode [Rigid $ ArrayBuilder.skip byteSize, Use label $ LabelUse {writeOffset = -byteSize, size = labelSize, displacement}]
   where
     byteSize = useSizeBytes labelSize
 
@@ -105,8 +105,8 @@ rewind state =
     , valid = mempty
     }
 
-rigidize :: [Part] -> Builder -> State -> Maybe ([Part], State)
-rigidize [] (Builder acc) state = Just (Foldable.toList acc, state)
+rigidize :: [Part] -> MachineCode -> State -> Maybe ([Part], State)
+rigidize [] (MachineCode acc) state = Just (Foldable.toList acc, state)
 rigidize (part : parts) acc state =
   case part of
     Rigid builder -> rigidize parts (appendPart acc part) state {offset = offset (ArrayBuilder.size builder) state.offset}
@@ -163,7 +163,7 @@ rigidize (part : parts) acc state =
         Int8 -> (fromIntegral (minBound :: Int8), fromIntegral (maxBound :: Int8))
         Int32 -> (fromIntegral (minBound :: Int32), fromIntegral (maxBound :: Int32))
 
-selectAlternative :: Bool -> [Part] -> Builder -> State -> Maybe ([Part], State)
+selectAlternative :: Bool -> [Part] -> MachineCode -> State -> Maybe ([Part], State)
 selectAlternative _alternative [] _acc _state = error "selectAlternative: unexpected end of input"
 selectAlternative alternative (part : parts) acc state =
   case part of
@@ -174,8 +174,8 @@ selectAlternative alternative (part : parts) acc state =
       | alternative -> rigidize (parts1 <> parts) acc state
       | otherwise -> rigidize (parts0 <> parts) acc state
 
-toArrayBuilder :: Builder -> (ArrayBuilder, HashMap Label (Offset, [(Offset, LabelUse)]))
-toArrayBuilder (Builder initialParts) =
+toArrayBuilder :: MachineCode -> (ArrayBuilder, HashMap Label (Offset, [(Offset, LabelUse)]))
+toArrayBuilder (MachineCode initialParts) =
   go
     (Foldable.toList initialParts)
     State
@@ -201,12 +201,12 @@ toArrayBuilder (Builder initialParts) =
               (parts'', state'') : _ -> go parts'' state''
         | otherwise -> go parts' state'
 
-run :: Builder -> ArrayBuilder
-run builder =
+run :: MachineCode -> ArrayBuilder
+run mc =
   ArrayBuilder.overlays $
     instructions : [useBuilder definition uses | (definition, uses) <- HashMap.elems labels]
   where
-    (instructions, labels) = toArrayBuilder builder
+    (instructions, labels) = toArrayBuilder mc
     useBuilder definition uses =
       ArrayBuilder.overlays
         [ ArrayBuilder.skip (useOffset + use.writeOffset) <> case use.size of
@@ -215,29 +215,29 @@ run builder =
         | (useOffset, use) <- uses
         ]
 
-flexible :: Builder -> Builder -> Builder
-flexible (Builder l) (Builder r) = Builder $ pure $ Flexible (toList l) (toList r)
+flexible :: MachineCode -> MachineCode -> MachineCode
+flexible (MachineCode l) (MachineCode r) = MachineCode $ pure $ Flexible (toList l) (toList r)
 
-word8 :: Word8 -> Builder
-word8 = Builder . pure . Rigid . ArrayBuilder.word8
+word8 :: Word8 -> MachineCode
+word8 = MachineCode . pure . Rigid . ArrayBuilder.word8
 
-word16 :: Word16 -> Builder
-word16 = Builder . pure . Rigid . ArrayBuilder.word16
+word16 :: Word16 -> MachineCode
+word16 = MachineCode . pure . Rigid . ArrayBuilder.word16
 
-word32 :: Word32 -> Builder
-word32 = Builder . pure . Rigid . ArrayBuilder.word32
+word32 :: Word32 -> MachineCode
+word32 = MachineCode . pure . Rigid . ArrayBuilder.word32
 
-word64 :: Word64 -> Builder
-word64 = Builder . pure . Rigid . ArrayBuilder.word64
+word64 :: Word64 -> MachineCode
+word64 = MachineCode . pure . Rigid . ArrayBuilder.word64
 
-int8 :: Int8 -> Builder
-int8 = Builder . pure . Rigid . ArrayBuilder.int8
+int8 :: Int8 -> MachineCode
+int8 = MachineCode . pure . Rigid . ArrayBuilder.int8
 
-int16 :: Int16 -> Builder
-int16 = Builder . pure . Rigid . ArrayBuilder.int16
+int16 :: Int16 -> MachineCode
+int16 = MachineCode . pure . Rigid . ArrayBuilder.int16
 
-int32 :: Int32 -> Builder
-int32 = Builder . pure . Rigid . ArrayBuilder.int32
+int32 :: Int32 -> MachineCode
+int32 = MachineCode . pure . Rigid . ArrayBuilder.int32
 
-int64 :: Int64 -> Builder
-int64 = Builder . pure . Rigid . ArrayBuilder.int64
+int64 :: Int64 -> MachineCode
+int64 = MachineCode . pure . Rigid . ArrayBuilder.int64

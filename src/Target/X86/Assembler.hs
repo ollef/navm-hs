@@ -16,10 +16,10 @@ import Data.Word
 import Label
 import Register
 import Target.X86.Assembly
-import Target.X86.MachineCode (Builder)
-import qualified Target.X86.MachineCode as Builder
+import Target.X86.MachineCode (MachineCode)
+import qualified Target.X86.MachineCode as MachineCode
 
-assembleInstructions :: [Instruction Register] -> Builder
+assembleInstructions :: [Instruction Register] -> MachineCode
 assembleInstructions =
   mconcat . map assembleInstruction
 
@@ -37,8 +37,8 @@ data Description = Description
   , opcode :: !(Or Word8)
   , modRM :: !(Maybe (Or Word8))
   , sib :: !(Maybe (Or Word8))
-  , displacement :: !Builder
-  , immediate :: !Builder
+  , displacement :: !MachineCode
+  , immediate :: !MachineCode
   }
 
 instance Semigroup Description where
@@ -48,12 +48,12 @@ instance Semigroup Description where
 instance Monoid Description where
   mempty = Description {rex = Nothing, opcode = mempty, modRM = Nothing, sib = Nothing, displacement = mempty, immediate = mempty}
 
-flattenDescription :: Description -> Builder
+flattenDescription :: Description -> MachineCode
 flattenDescription d =
-  foldMap (Builder.word8 . (.|. 0b0100_0000) . (.getOr)) d.rex
-    <> Builder.word8 d.opcode.getOr
-    <> foldMap (Builder.word8 . (.getOr)) d.modRM
-    <> foldMap (Builder.word8 . (.getOr)) d.sib
+  foldMap (MachineCode.word8 . (.|. 0b0100_0000) . (.getOr)) d.rex
+    <> MachineCode.word8 d.opcode.getOr
+    <> foldMap (MachineCode.word8 . (.getOr)) d.modRM
+    <> foldMap (MachineCode.word8 . (.getOr)) d.sib
     <> d.displacement
     <> d.immediate
 
@@ -68,7 +68,7 @@ opcodeReg reg =
     rexBit = regWord `shiftR` 3
     regBits = regWord .&. 0b111
 
-immediate :: Builder -> Description
+immediate :: MachineCode -> Description
 immediate i = mempty {immediate = i}
 
 operandSize64 :: Description
@@ -158,7 +158,7 @@ address offset addr =
         <> modRMRmSI
         <> sibBaseNone
         <> sibIndexNone
-        <> immediate (Builder.int32 $ labelDisplacement label disp)
+        <> immediate (MachineCode.int32 $ labelDisplacement label disp)
     Address (Absolute (Just base) Nothing) Nothing 0 ->
       modRMMod 0b00
         <> modRMRmSI
@@ -177,47 +177,47 @@ address offset addr =
         <> sibBase base
         <> sibIndex index
         <> sibScale scale
-        <> immediate (Builder.word8 disp8)
+        <> immediate (MachineCode.word8 disp8)
     Address (Absolute (Just base) Nothing) Nothing (toImm8 -> Just disp8) ->
       modRMMod 0b01
         <> modRMRmSI
         <> sibBase base
         <> sibIndexNone
-        <> immediate (Builder.word8 disp8)
+        <> immediate (MachineCode.word8 disp8)
     Address (Absolute (Just base) (Just (index, scale))) label disp ->
       modRMMod 0b10
         <> modRMRmSI
         <> sibBase base
         <> sibIndex index
         <> sibScale scale
-        <> immediate (Builder.int32 $ labelDisplacement label disp)
+        <> immediate (MachineCode.int32 $ labelDisplacement label disp)
     Address (Absolute (Just base) Nothing) label disp ->
       modRMMod 0b10
         <> modRMRmSI
         <> sibBase base
         <> sibIndexNone
-        <> immediate (Builder.int32 $ labelDisplacement label disp)
+        <> immediate (MachineCode.int32 $ labelDisplacement label disp)
     Address (Absolute Nothing (Just (index, scale))) label disp ->
       modRMMod 0b00
         <> modRMRmSI
         <> sibBaseNone
         <> sibIndex index
         <> sibScale scale
-        <> immediate (Builder.int32 $ labelDisplacement label disp)
+        <> immediate (MachineCode.int32 $ labelDisplacement label disp)
     Address Relative (Just label) disp ->
       modRMMod 0b00
         <> modRMRmNone
-        <> immediate (Builder.useRelativeToEnd label Builder.Int32 (fromIntegral disp - offset))
+        <> immediate (MachineCode.useRelativeToEnd label MachineCode.Int32 (fromIntegral disp - offset))
     Address Relative Nothing disp ->
       modRMRmNone
-        <> immediate (Builder.int32 disp)
+        <> immediate (MachineCode.int32 disp)
   where
     labelDisplacement :: Maybe Label -> Int32 -> Int32
     labelDisplacement Nothing i = i
     -- TODO relocation
     labelDisplacement (Just _) _ = 0
 
-assembleInstruction :: Instruction Register -> Builder
+assembleInstruction :: Instruction Register -> MachineCode
 assembleInstruction instruction =
   case instruction of
     Add (Register dst) _ (Register src) ->
@@ -231,18 +231,18 @@ assembleInstruction instruction =
         operandSize64
           <> opcode 0x83
           <> modRMRmReg dst
-          <> immediate (Builder.word8 imm8)
+          <> immediate (MachineCode.word8 imm8)
     Add (Register RAX) (Register RAX) (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x05
-          <> immediate (Builder.int32 imm32)
+          <> immediate (MachineCode.int32 imm32)
     Add (Register dst) _ (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x81
           <> modRMRmReg dst
-          <> immediate (Builder.int32 imm32)
+          <> immediate (MachineCode.int32 imm32)
     Add (Register dst) _ (Memory addr) ->
       flattenDescription $
         operandSize64
@@ -261,13 +261,13 @@ assembleInstruction instruction =
         operandSize64
           <> opcode 0x83
           <> address 1 addr
-          <> immediate (Builder.word8 imm8)
+          <> immediate (MachineCode.word8 imm8)
     Add (Memory addr) _ (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0x81
           <> address 4 addr
-          <> immediate (Builder.int32 imm32)
+          <> immediate (MachineCode.int32 imm32)
     Add (Memory _) _ (Memory _) -> error "too many address operands"
     Mul (RDX, RAX) RAX (Register src) ->
       flattenDescription $
@@ -283,17 +283,17 @@ assembleInstruction instruction =
           <> address 0 addr
     Mul {} -> error "invalid mul operands"
     Jmp (JmpRelative (Just label) offset) ->
-      Builder.flexible
-        (flattenDescription $ opcode 0xeb <> immediate (Builder.useRelativeToEnd label Builder.Int8 (fromIntegral offset)))
-        (flattenDescription $ opcode 0xe9 <> immediate (Builder.useRelativeToEnd label Builder.Int32 (fromIntegral offset)))
+      MachineCode.flexible
+        (flattenDescription $ opcode 0xeb <> immediate (MachineCode.useRelativeToEnd label MachineCode.Int8 (fromIntegral offset)))
+        (flattenDescription $ opcode 0xe9 <> immediate (MachineCode.useRelativeToEnd label MachineCode.Int32 (fromIntegral offset)))
     Jmp (JmpRelative Nothing (toImm8 . subtract 2 -> Just imm8)) ->
       flattenDescription $
         opcode 0xeb
-          <> immediate (Builder.word8 imm8)
+          <> immediate (MachineCode.word8 imm8)
     Jmp (JmpRelative Nothing imm32) ->
       flattenDescription $
         opcode 0xe9
-          <> immediate (Builder.int32 $ imm32 - 5)
+          <> immediate (MachineCode.int32 $ imm32 - 5)
     Jmp (JmpAbsolute (Register r)) ->
       flattenDescription $
         opcode 0xff
@@ -303,7 +303,7 @@ assembleInstruction instruction =
       -- TODO relocation
       flattenDescription $
         opcode 0xe9
-          <> immediate (Builder.int32 0)
+          <> immediate (MachineCode.int32 0)
     Jmp (JmpAbsolute (Memory addr)) ->
       flattenDescription $
         opcode 0xff
@@ -317,15 +317,15 @@ assembleInstruction instruction =
     Call (Immediate _) ->
       flattenDescription $
         opcode 0xe8
-          <> immediate (Builder.int32 0)
+          <> immediate (MachineCode.int32 0)
     Call (Memory addr) ->
       flattenDescription $
         opcode 0xff
           <> address 0 addr
           <> modRMExt 2
-    Ret -> Builder.word8 0xc3
-    Int 0x3 -> Builder.word8 0xcc
-    Int w -> Builder.word8 0xcd <> Builder.word8 w
+    Ret -> MachineCode.word8 0xc3
+    Int 0x3 -> MachineCode.word8 0xcc
+    Int w -> MachineCode.word8 0xcd <> MachineCode.word8 w
     MovImmediate64 dst (toImm32 -> Just imm32) ->
       assembleInstruction $ Mov (Register dst) (Immediate imm32)
     MovImmediate64 dst imm64 -> do
@@ -333,13 +333,13 @@ assembleInstruction instruction =
         operandSize64
           <> opcode 0xb8
           <> opcodeReg dst
-          <> immediate (Builder.int64 imm64)
+          <> immediate (MachineCode.int64 imm64)
     Mov (Register dst) (Immediate imm32) ->
       flattenDescription $
         operandSize64
           <> opcode 0xc7
           <> modRMRmReg dst
-          <> immediate (Builder.int32 imm32)
+          <> immediate (MachineCode.int32 imm32)
     Mov (Register dst) (Register src) ->
       flattenDescription $
         operandSize64
@@ -363,10 +363,10 @@ assembleInstruction instruction =
         operandSize64
           <> opcode 0xc7
           <> address 4 addr
-          <> immediate (Builder.int32 imm32)
+          <> immediate (MachineCode.int32 imm32)
     Mov (Memory _) (Memory _) -> error "too many memory operands"
     Mov (Immediate _) _ -> error "immediate destination operand"
-    Define label -> Builder.define label
+    Define label -> MachineCode.define label
 
 toImm8 :: (Integral a, Bits a) => a -> Maybe Word8
 toImm8 a = fromIntegral <$> (toIntegralSized a :: Maybe Int8)
@@ -378,7 +378,7 @@ fromEnum8 :: Enum a => a -> Word8
 fromEnum8 x =
   fromIntegral (fromEnum x)
 
-type instance RegisterType Builder = Register
+type instance RegisterType MachineCode = Register
 
-instance FromInstruction Builder where
+instance FromInstruction MachineCode where
   fromInstruction = assembleInstruction
