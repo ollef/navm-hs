@@ -10,10 +10,11 @@
 module ArrayBuilder where
 
 import Control.Monad
+import Control.Monad.Primitive (unsafeIOToPrim, unsafePrimToIO)
 import Control.Monad.ST
 import Control.Monad.State
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Internal as ByteString
 import Data.Char
 import Data.Foldable
 import Data.Int
@@ -21,6 +22,7 @@ import Data.Primitive.PrimArray
 import Data.Primitive.Ptr
 import Data.Semigroup
 import Data.Word
+import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (castPtr)
 import GHC.Exts hiding (build)
 import GHC.ST
@@ -143,10 +145,21 @@ int32 = word32 . fromIntegral
 int64 :: Int64 -> ArrayBuilder
 int64 = word64 . fromIntegral
 
+primArray :: PrimArray Word8 -> ArrayBuilder
+primArray arr =
+  st (fromIntegral $ sizeofPrimArray arr) \ptr ->
+    copyPrimArrayToPtr ptr arr 0 (sizeofPrimArray arr)
+
 byteString :: ByteString -> ArrayBuilder
-byteString bs = st (fromIntegral $ ByteString.length bs) $ \ptr ->
-  void $ foldlM go ptr [0 .. ByteString.length bs - 1]
-  where
-    go ptr i = do
-      writeOffPtr ptr 0 (ByteString.index bs i)
-      pure (advancePtr ptr 1)
+byteString (ByteString.BS foreignPtr sz) =
+  st (fromIntegral sz) \dst ->
+    unsafeIOToPrim $
+      withForeignPtr foreignPtr \src ->
+        copyPtr dst src sz
+
+toByteString :: ArrayBuilder -> ByteString
+toByteString ab =
+  runST $
+    unsafeIOToPrim $
+      ByteString.create (fromIntegral $ size ab) \(Ptr addr) ->
+        unsafePrimToIO $ ST \s -> (# function ab (# s, addr #), () #)
