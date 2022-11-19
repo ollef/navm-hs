@@ -38,6 +38,11 @@ newtype StackSlot = StackSlot Word
 data Location = Register !X86.Register | Stack !StackSlot
   deriving (Eq, Show)
 
+type instance RegisterType Location = X86.Register
+
+instance FromRegister Location where
+  fromRegister = Register
+
 addEdge :: Register.Virtual -> Register.Virtual -> Graph -> Graph
 addEdge r1 r2 =
   EnumMap.insertWith (<>) r1 (EnumSet.singleton r2)
