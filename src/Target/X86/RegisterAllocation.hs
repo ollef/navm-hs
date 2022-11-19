@@ -128,9 +128,7 @@ colour graph classes = foldl' go mempty orderedRegisters
                   | neighbour <- EnumSet.toList neighbours
                   , Just (Stack s) <- [EnumMap.lookup neighbour allocation]
                   ]
-              slot = case BitSet.complementList neighbourSlots of
-                [] -> error "impossible: no slots"
-                s : _ -> s
+              slot = head $ BitSet.complementList neighbourSlots
           EnumMap.insert reg (Stack slot) allocation
 
 coalesce :: Graph -> Classes -> Allocation -> [X86.Instruction Register.Virtual] -> Allocation
@@ -173,9 +171,7 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
               location = case possibleRegisters of
                 BitSet.Empty -> do
                   let neighbourSlots = BitSet.fromList neighbourSlotList
-                      slot = case BitSet.complementList neighbourSlots of
-                        [] -> error "impossible: no stack slots"
-                        s : _ -> s
+                      slot = head $ BitSet.complementList neighbourSlots
                   Stack slot
                 physicalReg BitSet.:< _ -> Register physicalReg
           r <- Register.fresh
