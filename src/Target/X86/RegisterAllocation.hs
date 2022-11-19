@@ -19,6 +19,7 @@ import Data.Foldable
 import Data.IntPSQ (IntPSQ)
 import qualified Data.IntPSQ as PSQ
 import Data.List (sortOn)
+import qualified Data.List as List
 import Data.Ord
 import Register (FromRegister, RegisterType)
 import qualified Register
@@ -135,6 +136,35 @@ colour graph classes = foldl' go mempty orderedRegisters
                   ]
               slot = head $ BitSet.complementList neighbourSlots
           EnumMap.insert reg (Stack slot) allocation
+
+useScratchRegisterWhenSafe :: Graph -> Classes -> Allocation -> Allocation
+useScratchRegisterWhenSafe graph classes initialAllocation =
+  EnumMap.foldlWithKey' go initialAllocation initialAllocation
+  where
+    go :: Allocation -> Register.Virtual -> Location -> Allocation
+    go allocation register location =
+      case location of
+        Register _ -> allocation
+        Stack slot -> do
+          let neighbours = graph EnumMap.! register
+              (neighbourRegistersList, neighbourSlotList) =
+                partitionEithers
+                  [ case allocation EnumMap.! neighbour of
+                    Register r -> Left r
+                    Stack s -> Right s
+                  | neighbour <- EnumSet.toList neighbours
+                  ]
+          case neighbourSlotList of
+            []
+              | scratchRegister `BitSet.member` (classes EnumMap.! register)
+              , scratchRegister `List.notElem` neighbourRegistersList ->
+                  EnumMap.insert register scratchRegister allocation
+            _ -> do
+              let neighbourSlots = BitSet.fromList neighbourSlotList
+                  newSlot = head $ BitSet.complementList neighbourSlots
+              if newSlot == slot
+                then allocation
+                else EnumMap.insert register (Stack newSlot) allocation
 
 coalesce :: Graph -> Classes -> Allocation -> [X86.Instruction Register.Virtual] -> Allocation
 coalesce initialGraph initialClasses initialAllocation instructions = do

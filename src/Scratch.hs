@@ -50,8 +50,11 @@ classes = registerClasses splitRegisters
 allocation :: Allocation
 allocation = colour graph classes
 
+scratchedAllocation :: Allocation
+scratchedAllocation = useScratchRegisterWhenSafe graph classes allocation
+
 coalescedAllocation :: Allocation
-coalescedAllocation = coalesce graph classes allocation splitRegisters
+coalescedAllocation = coalesce graph classes scratchedAllocation splitRegisters
 
 allocated :: [Instruction Location]
 allocated = map (fmap (allocation EnumMap.!)) splitRegisters
