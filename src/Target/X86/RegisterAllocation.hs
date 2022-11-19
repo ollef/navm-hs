@@ -10,6 +10,7 @@ import Data.Bifunctor
 import qualified Data.BitSet as BitSet
 import Data.Bits
 import Data.Coerce
+import Data.Either
 import Data.EnumMap (EnumMap)
 import qualified Data.EnumMap as EnumMap
 import Data.EnumSet (EnumSet)
@@ -164,21 +165,20 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
       | locationType l1 /= locationType l2 = pure unchanged
       | otherwise = do
           let class_ = BitSet.intersection (classes EnumMap.! r1') (classes EnumMap.! r2')
-              neighbourRegisters =
-                BitSet.fromList
-                  [ r
+              (neighbourRegistersList, neighbourSlotList) =
+                partitionEithers
+                  [ case allocation EnumMap.! neighbour of
+                    Register r -> Left r
+                    Stack s -> Right s
                   | neighbour <- EnumSet.toList neighbours
-                  , Register r <- [allocation EnumMap.! neighbour]
                   ]
-              possibleRegisters = BitSet.delete scratchRegister $ BitSet.difference class_ neighbourRegisters
+              neighbourRegisters = BitSet.fromList neighbourRegistersList
+              possibleRegisters =
+                (if null neighbourSlotList then id else BitSet.delete scratchRegister) $
+                  BitSet.difference class_ neighbourRegisters
               location = case possibleRegisters of
                 BitSet.Empty -> do
-                  let neighbourSlots =
-                        BitSet.fromList
-                          [ s
-                          | neighbour <- EnumSet.toList neighbours
-                          , Stack s <- [allocation EnumMap.! neighbour]
-                          ]
+                  let neighbourSlots = BitSet.fromList neighbourSlotList
                       slot = case BitSet.complementList neighbourSlots of
                         [] -> error "impossible: no stack slots"
                         s : _ -> s
