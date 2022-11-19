@@ -19,8 +19,8 @@ insertSpills instruction = do
         Register reg -> pure reg
         Stack (StackSlot slot) -> case occurrence of
           Definition -> do
-            tell ([], [X86.Mov [X86.rsp + fromIntegral slot * 8] (X86.Register scratchRegister)])
+            tell ([], [X86.mov [X86.rsp + fromIntegral slot * 8] scratchRegister])
             pure scratchRegister
           Use -> do
-            tell ([X86.Mov (X86.Register scratchRegister) [X86.rsp + fromIntegral slot * 8]], [])
+            tell ([X86.mov scratchRegister [X86.rsp + fromIntegral slot * 8]], [])
             pure scratchRegister
