@@ -239,4 +239,4 @@ sectionHeaders SectionHeadersParameters {..} =
         , ArrayBuilder.word64 0 -- entry size
         ]
     alloc = 0x2
-    execute = 0x2
+    execute = 0x4
