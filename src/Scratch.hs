@@ -51,7 +51,7 @@ allocation :: Allocation
 allocation = colour graph classes
 
 coalescedAllocation :: Allocation
-coalescedAllocation = coalesce graph classes (colour graph classes) splitRegisters
+coalescedAllocation = coalesce graph classes allocation splitRegisters
 
 allocated :: [Instruction Location]
 allocated = map (fmap (allocation EnumMap.!)) splitRegisters
