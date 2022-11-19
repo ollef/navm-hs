@@ -63,7 +63,9 @@ file code =
                 , entrySize = maybe 0 (fromIntegral . ArrayBuilder.size . snd) $ listToMaybe sectionHeaders_
                 , entries = fromIntegral $ length sectionHeaders_
                 }
-          , sectionNameSectionEntryIndex = maybe (error "no section name section entry index") fromIntegral $ List.findIndex ((== ".shstrtab") . fst) sectionHeaders_
+          , sectionNameSectionEntryIndex =
+              maybe (error "no section name section entry index") fromIntegral $
+                List.findIndex ((== ".shstrtab") . fst) sectionHeaders_
           }
     programHeaderOffset <- ArrayBuilder.offset
     mapM_ ArrayBuilder.emit programHeaders_
