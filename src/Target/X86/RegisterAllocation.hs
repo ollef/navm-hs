@@ -122,14 +122,14 @@ colour graph classes = foldl' go mempty orderedRegisters
           EnumMap.insert reg (Register physicalReg) allocation
         BitSet.Empty -> do
           let neighbourSlots =
-                EnumSet.fromList
+                BitSet.fromList
                   [ s
                   | neighbour <- EnumSet.toList neighbours
                   , Just (Stack s) <- [EnumMap.lookup neighbour allocation]
                   ]
-              slot = case EnumSet.maxView neighbourSlots of
-                Nothing -> 0
-                Just (s, _) -> s + 1
+              slot = case BitSet.complementList neighbourSlots of
+                [] -> error "impossible: no slots"
+                s : _ -> s
           EnumMap.insert reg (Stack slot) allocation
 
 removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
@@ -174,14 +174,14 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
               location = case possibleRegisters of
                 BitSet.Empty -> do
                   let neighbourSlots =
-                        EnumSet.fromList
+                        BitSet.fromList
                           [ s
                           | neighbour <- EnumSet.toList neighbours
                           , Stack s <- [allocation EnumMap.! neighbour]
                           ]
-                      slot = case EnumSet.maxView neighbourSlots of
-                        Nothing -> 0
-                        Just (s, _) -> s + 1
+                      slot = case BitSet.complementList neighbourSlots of
+                        [] -> error "impossible: no stack slots"
+                        s : _ -> s
                   Stack slot
                 physicalReg BitSet.:< _ -> Register physicalReg
           r <- Register.fresh
