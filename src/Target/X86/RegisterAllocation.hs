@@ -133,12 +133,6 @@ colour graph classes = foldl' go mempty orderedRegisters
                 s : _ -> s
           EnumMap.insert reg (Stack slot) allocation
 
-removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
-removeRedundantMoves = concatMap go
-  where
-    go (X86.Mov (X86.Register a) (X86.Register b)) | a == b = []
-    go instr = [instr]
-
 coalesce :: Graph -> Classes -> Allocation -> [X86.Instruction Register.Virtual] -> Allocation
 coalesce initialGraph initialClasses initialAllocation instructions = do
   let (_, _, renamedAllocation, renaming, renamedRegisters) =
@@ -200,3 +194,9 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
         locationType Register {} = 0
         locationType Stack {} = 1
         neighbours = graph EnumMap.! r1' <> graph EnumMap.! r2'
+
+removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
+removeRedundantMoves = concatMap go
+  where
+    go (X86.Mov (X86.Register a) (X86.Register b)) | a == b = []
+    go instr = [instr]
