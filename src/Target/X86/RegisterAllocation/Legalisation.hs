@@ -49,13 +49,13 @@ insertMovesAroundConstrainedOccurrences instruction = do
   pure $ before <> [instruction'] <> after
   where
     go occurrence class_ reg
-      | BitSet.size class_ == 1 = do
+      | class_ == BitSet.full = pure reg
+      | otherwise = do
           reg' <- lift fresh
           tell $ case occurrence of
             Definition -> (mempty, [Mov (Register reg) (Register reg')])
             Use -> ([Mov (Register reg') (Register reg)], mempty)
           pure reg'
-      | otherwise = pure reg
 
 concatMapM :: (Applicative m, Monad t, Traversable t) => (a -> m (t b)) -> t a -> m (t b)
 concatMapM f = fmap join . traverse f
