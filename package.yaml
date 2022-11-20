@@ -55,6 +55,7 @@ tests:
     source-dirs: tests
     dependencies:
       - bytestring
+      - enummapset
       - hedgehog
       - navm-hs
       - process
