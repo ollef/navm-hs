@@ -42,14 +42,17 @@ generateInstructions = do
           , forceRegister = \class_ _ -> Source . Register <$> generateRegister class_
           }
 
-generateSSAInstructions :: (Instruction () -> Bool) -> Gen [Instruction Register.Virtual]
+generateSSAInstructions :: (Instruction Register.Virtual -> Bool) -> Gen [Instruction Register.Virtual]
 generateSSAInstructions predicate = do
-  instructions <- Gen.list (Range.linear 1 1000) $ Gen.filter predicate $ generateInstruction []
-  instructions' <- evalStateT (mapM go instructions) 1
+  instructions <- Gen.list (Range.linear 1 1000) $ fillInRegisters =<< generateInstruction []
+  let instructions' = evalState (mapM (mapMWithClass go) $ filter predicate instructions) 1
   pure $ mov (Register $ Register.V 0) (Immediate 0) : instructions'
   where
-    go :: Instruction () -> StateT Int Gen (Instruction Register.Virtual)
-    go = mapMWithClass \occurrence _ ~() ->
+    fillInRegisters = mapMWithClass \occurrence _ ~() ->
+      case occurrence of
+        Definition -> pure $ Register.V 0
+        Use -> Register.V <$> Gen.int Range.constantBounded
+    go occurrence _ (Register.V register) =
       case occurrence of
         Definition -> do
           !nextRegister <- get
@@ -57,7 +60,7 @@ generateSSAInstructions predicate = do
           pure $ Register.V nextRegister
         Use -> do
           !nextRegister <- get
-          Register.V <$> Gen.int (Range.linear 0 (nextRegister - 1))
+          pure $ Register.V $ abs register `mod` nextRegister
 
 generateInstruction :: [Label] -> Gen (Instruction ())
 generateInstruction labels =
