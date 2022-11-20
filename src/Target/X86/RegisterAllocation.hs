@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
@@ -10,6 +11,8 @@ module Target.X86.RegisterAllocation where
 import Data.Bifunctor
 import qualified Data.BitSet as BitSet
 import Data.Bits
+import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as Builder
 import Data.Coerce
 import Data.Either
 import Data.EnumMap (EnumMap)
@@ -27,6 +30,7 @@ import Register (FromRegister, RegisterType)
 import qualified Register
 import qualified Target.X86.Assembly as X86
 import Target.X86.Constraints
+import Target.X86.Printer (printRegister)
 import qualified Target.X86.Register as X86.Register
 
 type Graph = EnumMap Register.Virtual (EnumSet Register.Virtual)
@@ -40,6 +44,12 @@ newtype StackSlot = StackSlot Word
 
 data Location = Register !X86.Register | Stack !StackSlot
   deriving (Eq, Show)
+
+printLocation :: Location -> Builder
+printLocation location =
+  case location of
+    Register r -> printRegister r
+    Stack (StackSlot s) -> "[stack slot " <> Builder.wordDec s <> "]"
 
 type instance RegisterType Location = X86.Register
 
