@@ -21,6 +21,14 @@ data State register = State
   , memory :: !(IntMap Word8)
   }
 
+emptyState :: State register
+emptyState =
+  State
+    { instructionPointer = 0
+    , registers = mempty
+    , memory = mempty
+    }
+
 interprets :: Enum register => [X86.Instruction register] -> State register
 interprets = foldl' (\s -> increaseInstructionPointer . interpret s) emptyState
   where
