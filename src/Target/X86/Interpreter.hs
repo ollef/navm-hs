@@ -57,7 +57,7 @@ interpret state instruction = case instruction of
       X86.Memory addr -> writeMemory (address addr) value state'
 
 readRegister :: Enum register => register -> State register -> Word64
-readRegister reg state = EnumMap.findWithDefault 0 reg state.registers
+readRegister reg state = EnumMap.findWithDefault 0xdeadbeefdeadbeef reg state.registers
 
 writeRegister :: Enum register => register -> Word64 -> State register -> State register
 writeRegister reg value state =
