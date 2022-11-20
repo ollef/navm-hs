@@ -44,9 +44,9 @@ generateInstructions = do
       | pos >= lpos = Define l : defineLabels pos ls' is
       | otherwise = i : defineLabels (pos + 1) ls is'
 
-generateSSAInstructions :: Gen [Instruction Register.Virtual]
-generateSSAInstructions = do
-  instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction []
+generateSSAInstructions :: (Instruction () -> Bool) -> Gen [Instruction Register.Virtual]
+generateSSAInstructions predicate = do
+  instructions <- Gen.list (Range.linear 1 1000) $ Gen.filter predicate $ generateInstruction []
   instructions' <- evalStateT (mapM go instructions) 1
   pure $ mov (Register $ Register.V 0) (Immediate 0) : instructions'
   where
