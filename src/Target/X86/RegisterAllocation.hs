@@ -2,6 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Target.X86.RegisterAllocation where
@@ -44,13 +45,11 @@ type instance RegisterType Location = X86.Register
 instance FromRegister Location where
   fromRegister = Register
 
-addEdge :: Register.Virtual -> Register.Virtual -> Graph -> Graph
-addEdge r1 r2 =
-  EnumMap.insertWith (<>) r1 (EnumSet.singleton r2)
-    . EnumMap.insertWith (<>) r2 (EnumSet.singleton r1)
 
-addEdges :: [(Register.Virtual, Register.Virtual)] -> Graph -> Graph
-addEdges edges graph = foldl' (flip $ uncurry addEdge) graph edges
+addEdges :: Register.Virtual -> EnumSet Register.Virtual -> Graph -> Graph
+addEdges r1 (EnumSet.delete r1 -> r2s) graph =
+  EnumMap.insertWith (<>) r1 r2s $
+    EnumSet.foldl' (\g r2 -> EnumMap.insertWith (<>) r2 (EnumSet.singleton r1) g) graph r2s
 
 delete :: Register.Virtual -> Graph -> Graph
 delete r g =
@@ -58,9 +57,9 @@ delete r g =
   where
     (maybeEdges, g') = EnumMap.updateLookupWithKey (\_ _ -> Nothing) r g
 
-buildGraph :: [X86.Instruction Register.Virtual] -> Graph
-buildGraph =
-  fst . foldr go mempty
+buildGraph :: EnumSet Register.Virtual -> [X86.Instruction Register.Virtual] -> Graph
+buildGraph initialLiveOuts =
+  fst . foldr go (mempty, initialLiveOuts)
   where
     go
       :: X86.Instruction Register.Virtual
@@ -79,12 +78,12 @@ buildGraph =
 
         graph' = case instruction of
           X86.Mov (X86.Register dst) (X86.Register src) ->
-            addEdges [(reg, dst) | reg <- EnumSet.toList liveOuts, reg /= src, reg /= dst] graph
+            addEdges dst (EnumSet.delete src liveOuts) graph
           _ ->
             foldWithClass
               ( \occ _ reg ->
                   case occ of
-                    Definition -> addEdges [(reg, reg') | reg' <- EnumSet.toList liveOuts, reg /= reg']
+                    Definition -> addEdges reg liveOuts
                     Use -> id
               )
               graph
@@ -210,7 +209,7 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
                   Stack slot
                 physicalReg BitSet.:< _ -> Register physicalReg
           r <- Register.fresh
-          let graph' = addEdges [(r, n) | n <- EnumSet.toList neighbours] $ delete r1' $ delete r2' graph
+          let graph' = addEdges r neighbours $ delete r1' $ delete r2' graph
               classes' = EnumMap.insert r class_ $ EnumMap.delete r1' $ EnumMap.delete r2' classes
               allocation' = EnumMap.insert r location $ EnumMap.delete r1' $ EnumMap.delete r2' allocation
               renaming' = EnumMap.insert r1' r $ EnumMap.insert r2' r renaming
