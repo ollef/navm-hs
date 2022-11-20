@@ -42,7 +42,7 @@ splitRegisters =
     concatMapM insertMovesAroundConstrainedOccurrences legalOperands
 
 graph :: Graph
-graph = buildGraph splitRegisters
+graph = buildGraph mempty splitRegisters
 
 classes :: EnumMap Register.Virtual X86.Class
 classes = registerClasses splitRegisters
