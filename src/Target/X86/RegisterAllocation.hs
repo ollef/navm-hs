@@ -22,6 +22,7 @@ import qualified Data.IntPSQ as PSQ
 import Data.List (sortOn)
 import qualified Data.List as List
 import Data.Ord
+import GHC.Stack
 import Register (FromRegister, RegisterType)
 import qualified Register
 import qualified Target.X86.Assembly as X86
@@ -45,6 +46,9 @@ type instance RegisterType Location = X86.Register
 instance FromRegister Location where
   fromRegister = Register
 
+(!) :: (HasCallStack, Enum k, Show k) => EnumMap k a -> k -> a
+m ! k =
+  EnumMap.findWithDefault (error $ "no such key " <> show k) k m
 
 addEdges :: Register.Virtual -> EnumSet Register.Virtual -> Graph -> Graph
 addEdges r1 (EnumSet.delete r1 -> r2s) graph =
@@ -112,7 +116,7 @@ colour :: Graph -> Classes -> Allocation
 colour graph classes = foldl' go mempty orderedRegisters
   where
     orderedRegisters :: [(Register.Virtual, X86.Register.Class)]
-    orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes EnumMap.! reg) | reg <- simplicialEliminationOrder graph]
+    orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes ! reg) | reg <- simplicialEliminationOrder graph]
     go :: Allocation -> (Register.Virtual, X86.Register.Class) -> Allocation
     go allocation (reg, class_) = do
       let neighbours = EnumMap.findWithDefault mempty reg graph
@@ -145,17 +149,17 @@ useScratchRegisterWhenSafe graph classes initialAllocation =
       case location of
         Register _ -> allocation
         Stack slot -> do
-          let neighbours = graph EnumMap.! register
+          let neighbours = graph ! register
               (neighbourRegistersList, neighbourSlotList) =
                 partitionEithers
-                  [ case allocation EnumMap.! neighbour of
+                  [ case allocation ! neighbour of
                     Register r -> Left r
                     Stack s -> Right s
                   | neighbour <- EnumSet.toList neighbours
                   ]
           case neighbourSlotList of
             []
-              | scratchRegister `BitSet.member` (classes EnumMap.! register)
+              | scratchRegister `BitSet.member` (classes ! register)
               , scratchRegister `List.notElem` neighbourRegistersList ->
                   EnumMap.insert register scratchRegister allocation
             _ -> do
@@ -190,10 +194,10 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
       | EnumSet.member r1' neighbours = pure unchanged
       | locationType l1 /= locationType l2 = pure unchanged
       | otherwise = do
-          let class_ = BitSet.intersection (classes EnumMap.! r1') (classes EnumMap.! r2')
+          let class_ = BitSet.intersection (classes ! r1') (classes ! r2')
               (neighbourRegistersList, neighbourSlotList) =
                 partitionEithers
-                  [ case allocation EnumMap.! neighbour of
+                  [ case allocation ! neighbour of
                     Register r -> Left r
                     Stack s -> Right s
                   | neighbour <- EnumSet.toList neighbours
@@ -218,12 +222,12 @@ coalesce initialGraph initialClasses initialAllocation instructions = do
       where
         r1' = renamed r1 renaming
         r2' = renamed r2 renaming
-        l1 = allocation EnumMap.! r1'
-        l2 = allocation EnumMap.! r2'
+        l1 = allocation ! r1'
+        l2 = allocation ! r2'
         locationType :: Location -> Int
         locationType Register {} = 0
         locationType Stack {} = 1
-        neighbours = graph EnumMap.! r1' <> graph EnumMap.! r2'
+        neighbours = graph ! r1' <> graph ! r2'
 
 removeRedundantMoves :: Eq r => [X86.Instruction r] -> [X86.Instruction r]
 removeRedundantMoves = concatMap go
