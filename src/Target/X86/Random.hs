@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Target.X86.Random where
@@ -24,25 +25,22 @@ import qualified Target.X86.Register as Register
 generateInstructions :: Gen [Instruction Register]
 generateInstructions = do
   labels <- Gen.subsequence [fromString $ pure c | c <- ['a' .. 'z']]
-  instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction labels
-  instructions' <-
-    mapM
-      ( constrain
-          Constrainers
-            { registerOccurrence = \_ class_ () -> generateRegister class_
-            , forceSame = \(Destination dst) _ -> pure (Destination dst, Source dst)
-            , forceRegister = \class_ _ -> Source . Register <$> generateRegister class_
-            }
-      )
-      instructions
-  labelPositions <- Gen.list (Range.singleton $ length labels) $ Gen.int $ Range.constant 0 $ length instructions'
-  pure $ defineLabels 0 (zip labels $ sort labelPositions) instructions'
+  instructions <- Gen.list (Range.linear 1 10) $ fillInRegisters =<< generateInstruction labels
+  labelPositions <- Gen.list (Range.singleton $ length labels) $ Gen.int $ Range.constant 0 $ length instructions
+  pure $ defineLabels 0 (zip labels $ sort labelPositions) instructions
   where
     defineLabels _pos [] is = is
     defineLabels _pos ls [] = Define . fst <$> ls
     defineLabels pos ls@((l, lpos) : ls') is@(i : is')
       | pos >= lpos = Define l : defineLabels pos ls' is
       | otherwise = i : defineLabels (pos + 1) ls is'
+    fillInRegisters =
+      constrain
+        Constrainers
+          { registerOccurrence = \_ class_ ~() -> generateRegister class_
+          , forceSame = \(Destination dst) _ -> pure (Destination dst, Source dst)
+          , forceRegister = \class_ _ -> Source . Register <$> generateRegister class_
+          }
 
 generateSSAInstructions :: (Instruction () -> Bool) -> Gen [Instruction Register.Virtual]
 generateSSAInstructions predicate = do
