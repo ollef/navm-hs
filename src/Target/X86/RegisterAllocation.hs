@@ -126,7 +126,7 @@ colour :: Graph -> Classes -> Allocation
 colour graph classes = foldl' go mempty orderedRegisters
   where
     orderedRegisters :: [(Register.Virtual, X86.Register.Class)]
-    orderedRegisters = sortOn ((/= 1) . BitSet.size . snd) [(reg, classes ! reg) | reg <- simplicialEliminationOrder graph]
+    orderedRegisters = sortOn (BitSet.size . snd) [(reg, classes ! reg) | reg <- simplicialEliminationOrder graph]
     go :: Allocation -> (Register.Virtual, X86.Register.Class) -> Allocation
     go allocation (reg, class_) = do
       let neighbours = EnumMap.findWithDefault mempty reg graph
