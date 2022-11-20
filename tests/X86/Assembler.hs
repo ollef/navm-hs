@@ -22,7 +22,7 @@ import Target.X86.Random
 tests :: Hedgehog.Group
 tests =
   Hedgehog.Group
-    "X86"
+    "X86.Assembler"
     $ assembleSelectedX86Instructions
       <> assembleRandomX86Instructions
 
