@@ -16,7 +16,8 @@ import Target.X86.Assembly as X86
 import Prelude hiding (read)
 
 data State register = State
-  { registers :: !(EnumMap register Word64)
+  { instructionPointer :: !Word64
+  , registers :: !(EnumMap register Word64)
   , memory :: !(IntMap Word8)
   }
 
@@ -43,7 +44,7 @@ interpret state instruction = case instruction of
     address (X86.Address b l i) =
       base b + label l + fromIntegral i
       where
-        base Relative = error "relative base"
+        base Relative = state.instructionPointer
         base (Absolute maybeBase maybeRegScale) =
           maybe 0 (`readRegister` state) maybeBase
             + maybe 0 (\(reg, scale) -> readRegister reg state * X86.fromScale scale) maybeRegScale
