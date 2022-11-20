@@ -19,7 +19,7 @@ printInstruction instruction =
     <> case instruction of
       Add o1 _ o2 -> "add " <> printOperand o1 <> ", " <> printOperand o2
       Mul (RDX, RAX) RAX o -> "mul " <> printOperand o
-      Mul {} -> error "invalid mul operands"
+      Mul {} -> error $ "invalid mul operands " <> show instruction
       Jmp o -> "jmp " <> printJmpOperand o
       Call o -> "call " <> printOperand o
       Ret -> "ret"
