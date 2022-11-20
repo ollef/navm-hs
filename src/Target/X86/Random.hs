@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -5,6 +7,7 @@ module Target.X86.Random where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State
 import qualified Data.BitSet as BitSet
 import Data.Int
 import Data.List (sort)
@@ -13,6 +16,7 @@ import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Label (Label)
+import qualified Register
 import Target.X86.Assembly
 import Target.X86.Constraints
 import qualified Target.X86.Register as Register
@@ -39,6 +43,23 @@ generateInstructions = do
     defineLabels pos ls@((l, lpos) : ls') is@(i : is')
       | pos >= lpos = Define l : defineLabels pos ls' is
       | otherwise = i : defineLabels (pos + 1) ls is'
+
+generateSSAInstructions :: Gen [Instruction Register.Virtual]
+generateSSAInstructions = do
+  instructions <- Gen.list (Range.linear 1 1000) $ generateInstruction []
+  instructions' <- evalStateT (mapM go instructions) 1
+  pure $ mov (Register $ Register.V 0) (Immediate 0) : instructions'
+  where
+    go :: Instruction () -> StateT Int Gen (Instruction Register.Virtual)
+    go = mapMWithClass \occurrence _ ~() ->
+      case occurrence of
+        Definition -> do
+          !nextRegister <- get
+          put $ nextRegister + 1
+          pure $ Register.V nextRegister
+        Use -> do
+          !nextRegister <- get
+          Register.V <$> Gen.int (Range.linear 0 (nextRegister - 1))
 
 generateInstruction :: [Label] -> Gen (Instruction ())
 generateInstruction labels =
