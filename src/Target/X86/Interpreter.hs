@@ -29,6 +29,15 @@ emptyState =
     , memory = mempty
     }
 
+interpretable :: X86.Instruction register -> Bool
+interpretable instruction =
+  case instruction of
+    X86.Jmp _ -> False
+    X86.Call _ -> False
+    X86.Ret -> False
+    X86.Int _ -> False
+    _ -> True
+
 interprets :: Enum register => [X86.Instruction register] -> State register
 interprets = foldl' (\s -> increaseInstructionPointer . interpret s) emptyState
   where
