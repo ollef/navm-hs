@@ -21,6 +21,11 @@ data State register = State
   , memory :: !(IntMap Word8)
   }
 
+interprets :: Enum register => [X86.Instruction register] -> State register
+interprets = foldl' (\s -> increaseInstructionPointer . interpret s) emptyState
+  where
+    increaseInstructionPointer state = state {instructionPointer = state.instructionPointer + 1}
+
 interpret :: Enum register => State register -> X86.Instruction register -> State register
 interpret state instruction = case instruction of
   X86.Add dst src1 src2 -> do
