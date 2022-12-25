@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -30,7 +31,7 @@ assembleSelectedX86Instructions :: [(Hedgehog.PropertyName, Hedgehog.Property)]
 assembleSelectedX86Instructions =
   [ ( "Selected instructions " <> fromString (show testNumber)
     , Hedgehog.withTests 1 $
-        Hedgehog.property $ do
+        Hedgehog.property do
           Hedgehog.annotateShow is
           matchGNUAssembler is
     )
@@ -60,7 +61,7 @@ assembleRandomX86Instructions =
   [
     ( "Random instructions"
     , Hedgehog.withTests 1000 $
-        Hedgehog.property $ do
+        Hedgehog.property do
           instructions <- Hedgehog.forAll generateInstructions
           matchGNUAssembler instructions
     )

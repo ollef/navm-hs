@@ -70,7 +70,7 @@ st bytes f =
 
 run :: ArrayBuilder -> ByteArray
 run builder =
-  runST $ do
+  runST do
     arr <- newPinnedByteArray $ fromIntegral $ size builder
     let !(Ptr startAddr) = mutableByteArrayContents arr
     ST

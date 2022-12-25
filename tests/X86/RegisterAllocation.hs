@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module X86.RegisterAllocation where
@@ -30,13 +31,13 @@ interpretBeforeAndAfterRegisterAllocation =
   [
     ( "Random instructions"
     , Hedgehog.withTests 1000 $
-        Hedgehog.property $ do
+        Hedgehog.property do
           virtualInstructions <- Hedgehog.forAll $ Random.generateSSAInstructions Interpreter.interpretable
           Hedgehog.annotate $ Char8.unpack $ Builder.toLazyByteString $ Printer.SSA.printInstructions Register.printVirtual virtualInstructions
           let virtualInstructions' =
                 Register.runVirtualSupply
                   (nextRegister virtualInstructions)
-                  $ do
+                  do
                     Legalisation.concatMapM
                       ( Legalisation.legaliseOperands
                           >=> Legalisation.concatMapM Legalisation.insertMovesAroundConstrainedOccurrences

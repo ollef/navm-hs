@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -30,22 +31,22 @@ instance Applicative VirtualSupply where
 
 instance Monad VirtualSupply where
   VirtualSupply s >>= f =
-    VirtualSupply $ do
+    VirtualSupply do
       a <- s
       let VirtualSupply s' = f a
       s'
 
 fresh :: VirtualSupply Virtual
-fresh = VirtualSupply $ do
+fresh = VirtualSupply do
   ref <- ask
-  lift $ do
+  lift do
     next <- readSTRef ref
     let !next' = succ next
     writeSTRef ref next'
     pure next
 
 runVirtualSupply :: Virtual -> VirtualSupply a -> a
-runVirtualSupply v (VirtualSupply s) = runST $ do
+runVirtualSupply v (VirtualSupply s) = runST do
   ref <- newSTRef v
   runReaderT s ref
 
