@@ -10,8 +10,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
--- Unavoidable in the MonadOC instance
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Block where
 
