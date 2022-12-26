@@ -20,10 +20,10 @@ import Openness
 
 data Graph node (i :: OC) (o :: OC) where
   Single :: node 'O 'O -> Graph node 'O 'O
-  GraphCC :: HashMap (Label node) (node 'C 'C) -> Graph node 'C 'C
-  GraphOC :: node 'O 'C -> HashMap (Label node) (node 'C 'C) -> Graph node 'O 'C
-  GraphCO :: HashMap (Label node) (node 'C 'C) -> node 'C 'O -> Graph node 'C 'O
-  GraphOO :: node 'O 'C -> HashMap (Label node) (node 'C 'C) -> node 'C 'O -> Graph node 'O 'O
+  CC :: HashMap (Label node) (node 'C 'C) -> Graph node 'C 'C
+  OC :: node 'O 'C -> HashMap (Label node) (node 'C 'C) -> Graph node 'O 'C
+  CO :: HashMap (Label node) (node 'C 'C) -> node 'C 'O -> Graph node 'C 'O
+  OO :: node 'O 'C -> HashMap (Label node) (node 'C 'C) -> node 'C 'O -> Graph node 'O 'O
 
 deriving instance
   (forall i' o'. Show (node i' o'), Show (Label node))
@@ -37,10 +37,10 @@ manyView
       , MaybeO o (node 'C 'O)
       )
 manyView (Single _) = Nothing
-manyView (GraphCC ls) = Just (NothingO, ls, NothingO)
-manyView (GraphOC n ls) = Just (JustO n, ls, NothingO)
-manyView (GraphCO ls n) = Just (NothingO, ls, JustO n)
-manyView (GraphOO n ls n') = Just (JustO n, ls, JustO n')
+manyView (CC ls) = Just (NothingO, ls, NothingO)
+manyView (OC n ls) = Just (JustO n, ls, NothingO)
+manyView (CO ls n) = Just (NothingO, ls, JustO n)
+manyView (OO n ls n') = Just (JustO n, ls, JustO n')
 
 pattern Many
   :: MaybeO i (node 'O 'C)
@@ -50,20 +50,20 @@ pattern Many
 pattern Many n ls n' <-
   (manyView -> Just (n, ls, n'))
   where
-    Many NothingO ls NothingO = GraphCC ls
-    Many (JustO n) ls NothingO = GraphOC n ls
-    Many NothingO ls (JustO n) = GraphCO ls n
-    Many (JustO n) ls (JustO n') = GraphOO n ls n'
+    Many NothingO ls NothingO = CC ls
+    Many (JustO n) ls NothingO = OC n ls
+    Many NothingO ls (JustO n) = CO ls n
+    Many (JustO n) ls (JustO n') = OO n ls n'
 
 {-# COMPLETE Single, Many #-}
 
-{-# COMPLETE Single, GraphCC, GraphOC, GraphCO, GraphOO #-}
+{-# COMPLETE Single, CC, OC, CO, OO #-}
 
 instance (MonoidOC node, HashLabelled node) => MonoidOC (Graph node) where
   type MonoidConstraints (Graph node) oc = MonoidConstraints node 'O
   empty :: forall oc. (Known oc, MonoidConstraints node 'O) => Graph node oc oc
   empty = case known @oc of
-    SingletonC -> GraphCC mempty
+    SingletonC -> CC mempty
     SingletonO -> Single empty
   append (Single a) (Single b) = Single (append a b)
   append (Single a) (Many (JustO i) ls o) = Many (JustO (append a i)) ls o
@@ -110,7 +110,7 @@ instance UnitOC Graph where
     => a i o
     -> Graph a i o
   unit node = case (known @i, known @o) of
-    (SingletonC, SingletonC) -> GraphCC $ HashMap.singleton (label node) node
-    (SingletonO, SingletonC) -> GraphOC node mempty
-    (SingletonC, SingletonO) -> GraphCO mempty node
+    (SingletonC, SingletonC) -> CC $ HashMap.singleton (label node) node
+    (SingletonO, SingletonC) -> OC node mempty
+    (SingletonC, SingletonO) -> CO mempty node
     (SingletonO, SingletonO) -> Single node
