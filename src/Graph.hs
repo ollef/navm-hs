@@ -20,6 +20,7 @@ import Data.Bifunctor
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Data.HashSet.Extra as HashSet
 import Data.Hashable
 import Openness
 
@@ -129,10 +130,11 @@ reversePostOrder (Many (JustO entry) nodes _) =
   where
     go l = do
       visited <- gets snd
-      unless (HashSet.member l visited) case HashMap.lookup l nodes of
+      let (visited', already) = HashSet.insertMember l visited
+      unless already case HashMap.lookup l nodes of
         Nothing -> pure ()
         Just node -> do
-          modify $ second $ HashSet.insert l
+          modify $ second $ const visited'
           forM_ (HashSet.toList $ successors node) go
           modify $ first (node :)
 
