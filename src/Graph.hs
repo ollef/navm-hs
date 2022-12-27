@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -14,8 +15,12 @@
 
 module Graph where
 
+import Control.Monad.State
+import Data.Bifunctor
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.HashSet as HashSet
+import Data.Hashable
 import Openness
 
 data Graph node (i :: OC) (o :: OC) where
@@ -114,3 +119,22 @@ instance UnitOC Graph where
     (SingletonO, SingletonC) -> OC node mempty
     (SingletonC, SingletonO) -> CO mempty node
     (SingletonO, SingletonO) -> Single node
+
+reversePostOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [node 'C 'C]
+reversePostOrder (Single _node) = []
+reversePostOrder (Many (JustO entry) nodes _) =
+  fst $
+    flip execState mempty $
+      forM_ (HashSet.toList $ successors entry) go
+  where
+    go l = do
+      visited <- gets snd
+      unless (HashSet.member l visited) case HashMap.lookup l nodes of
+        Nothing -> pure ()
+        Just node -> do
+          modify $ second $ HashSet.insert l
+          forM_ (HashSet.toList $ successors node) go
+          modify $ first (node :)
+
+postOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [node 'C 'C]
+postOrder = reverse . reversePostOrder
