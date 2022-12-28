@@ -19,6 +19,7 @@ import Control.Monad.State
 import Data.Bifunctor
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
+import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashSet.Extra as HashSet
 import Data.Hashable
@@ -140,3 +141,20 @@ reversePostOrder (Many (JustO entry) nodes _) =
 
 postOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [node 'C 'C]
 postOrder = reverse . reversePostOrder
+
+predecessors
+  :: (Hashable (Label node), Successors node)
+  => Graph node 'O x
+  -> HashMap (Label node) (HashSet (Maybe (Label node)))
+predecessors (Single _) = mempty
+predecessors (Many (JustO entry) nodes _exit) =
+  HashMap.unionWith
+    (<>)
+    ( HashMap.fromListWith
+        (<>)
+        [ (s, HashSet.singleton (Just l))
+        | (l, node) <- HashMap.toList nodes
+        , s <- HashSet.toList $ successors node
+        ]
+    )
+    ((\ ~() -> HashSet.singleton Nothing) <$> HashSet.toMap (successors entry))
