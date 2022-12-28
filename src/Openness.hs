@@ -81,12 +81,6 @@ instance (Eq (Label node), Hashable (Label node), Labelled node) => HashLabelled
 class Labelled node => Successors node where
   successors :: node i 'C -> HashSet (Label node)
 
-newtype ConstOC a (i :: OC) (o :: OC) = ConstOC {getConstOC :: a}
-
-instance Monoid a => MonoidOC (ConstOC a) where
-  empty = ConstOC mempty
-  append (ConstOC a) (ConstOC b) = ConstOC $ a <> b
-
 newtype ComposeOC f g (i :: OC) (o :: OC) = ComposeOC {getComposeOC :: f (g i o)}
 
 instance (MonoidOC g, Applicative f) => MonoidOC (ComposeOC f g) where
