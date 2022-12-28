@@ -26,6 +26,8 @@ pattern a :< as <- (popFront -> Just (a, as))
   where
     a :< as = insert a as
 
+{-# COMPLETE Empty, (:<) #-}
+
 fromList :: Hashable a => [a] -> HashSetList a
 fromList = foldr insert mempty
 
