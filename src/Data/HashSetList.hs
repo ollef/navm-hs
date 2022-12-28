@@ -31,8 +31,14 @@ pattern a :< as <- (popFront -> Just (a, as))
 fromList :: Hashable a => [a] -> HashSetList a
 fromList = foldr insert mempty
 
+fromSet :: HashSet a -> HashSetList a
+fromSet s = HashSetList s $ HashSet.toList s
+
 toList :: HashSetList a -> [a]
 toList (HashSetList _ as) = as
+
+toSet :: HashSetList a -> HashSet a
+toSet (HashSetList s _) = s
 
 insert :: Hashable a => a -> HashSetList a -> HashSetList a
 insert a hsl@(HashSetList s as)
