@@ -1,8 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
@@ -23,6 +26,8 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashSet.Extra as HashSet
 import Data.Hashable
+import Data.Kind
+import GHC.Generics
 import Openness
 
 data Graph node (i :: OC) (o :: OC) where
@@ -122,9 +127,68 @@ instance UnitOC Graph where
     (SingletonC, SingletonO) -> CO mempty node
     (SingletonO, SingletonO) -> Single node
 
-reversePostOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [node 'C 'C]
-reversePostOrder (Single _node) = []
-reversePostOrder (Many (JustO entry) nodes _) =
+data SomeNode (node :: OC -> OC -> Type) where
+  Entry :: node 'O 'C -> SomeNode node
+  Internal :: node 'C 'C -> SomeNode node
+  Exit :: node 'C 'O -> SomeNode node
+  EntryExit :: node 'O 'O -> SomeNode node
+
+withSome :: SomeNode node -> (forall i o. node i o -> a) -> a
+withSome sn f = case sn of
+  Entry n -> f n
+  Internal n -> f n
+  Exit n -> f n
+  EntryExit n -> f n
+
+data SomeLabel node
+  = EntryLabel
+  | NodeLabel !(Label node)
+  deriving (Generic)
+
+deriving instance Eq (Label node) => Eq (SomeLabel node)
+
+deriving instance Ord (Label node) => Ord (SomeLabel node)
+
+deriving instance Show (Label node) => Show (SomeLabel node)
+
+deriving instance Hashable (Label node) => Hashable (SomeLabel node)
+
+someLabel :: Labelled node => SomeNode node -> SomeLabel node
+someLabel Entry {} = EntryLabel
+someLabel (Internal n) = NodeLabel $ label n
+someLabel (Exit n) = NodeLabel $ label n
+someLabel EntryExit {} = EntryLabel
+
+someSuccessors
+  :: (Successors node, Hashable (Label node))
+  => SomeNode node
+  -> HashSet (Label node)
+someSuccessors = \case
+  Entry entry -> successors entry
+  Internal n -> successors n
+  Exit _ -> mempty
+  EntryExit _ -> mempty
+
+(!)
+  :: (Labelled node, Hashable (Label node))
+  => Graph node i o
+  -> SomeLabel node
+  -> SomeNode node
+Single node ! EntryLabel = EntryExit node
+Single _ ! NodeLabel _ = error "Graph.!: Single/NodeLabel"
+Many (JustO entry) _internal _exit ! EntryLabel = Entry entry
+Many NothingO _internal _exit ! EntryLabel = error "Graph.!: Many/EntryLabel: no entry"
+Many _entry internal NothingO ! NodeLabel l
+  | Just n <- HashMap.lookup l internal = Internal n
+  | otherwise = error "Graph.!: no such label"
+Many _entry internal (JustO exit) ! NodeLabel l
+  | l == label exit = Exit exit
+  | Just n <- HashMap.lookup l internal = Internal n
+  | otherwise = error "Graph.!: no such label"
+
+reversePostOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [SomeNode node]
+reversePostOrder (Single node) = [EntryExit node]
+reversePostOrder graph@(Many (JustO entry) _nodes _exit) =
   fst $
     flip execState mempty $
       forM_ (HashSet.toList $ successors entry) go
@@ -132,29 +196,28 @@ reversePostOrder (Many (JustO entry) nodes _) =
     go l = do
       visited <- gets snd
       let (visited', already) = HashSet.insertMember l visited
-      unless already case HashMap.lookup l nodes of
-        Nothing -> pure ()
-        Just node -> do
-          modify $ second $ const visited'
-          forM_ (HashSet.toList $ successors node) go
-          modify $ first (node :)
+      unless already do
+        let node = graph ! NodeLabel l
+        modify $ second $ const visited'
+        forM_ (HashSet.toList $ someSuccessors node) go
+        modify $ first (node :)
 
-postOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [node 'C 'C]
+postOrder :: (Successors node, Hashable (Label node)) => Graph node 'O x -> [SomeNode node]
 postOrder = reverse . reversePostOrder
 
 predecessors
   :: (Hashable (Label node), Successors node)
   => Graph node 'O x
-  -> HashMap (Label node) (HashSet (Maybe (Label node)))
+  -> HashMap (Label node) (HashSet (SomeLabel node))
 predecessors (Single _) = mempty
 predecessors (Many (JustO entry) nodes _exit) =
   HashMap.unionWith
     (<>)
     ( HashMap.fromListWith
         (<>)
-        [ (s, HashSet.singleton (Just l))
+        [ (s, HashSet.singleton (NodeLabel l))
         | (l, node) <- HashMap.toList nodes
         , s <- HashSet.toList $ successors node
         ]
     )
-    ((\ ~() -> HashSet.singleton Nothing) <$> HashSet.toMap (successors entry))
+    ((\ ~() -> HashSet.singleton EntryLabel) <$> HashSet.toMap (successors entry))
