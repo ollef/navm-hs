@@ -54,3 +54,7 @@ forward transfer graph =
             modify $ bimap (HashMap.insert nodeLabel out.value) (HashSetList.fromSet (HashSet.map Graph.NodeLabel $ Graph.someSuccessors node) <>)
   where
     predecessors = Graph.predecessors graph
+
+-- forward/backward analysis
+-- dominators analysis
+-- post-dominators analysis
